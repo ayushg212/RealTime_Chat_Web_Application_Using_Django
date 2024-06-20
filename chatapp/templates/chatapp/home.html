@@ -1,0 +1,20 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home</title>
+</head>
+<body>
+    <h2>Home</h2>
+    <p>Welcome to the home page!</p>
+    <p> Username : {{ user.username }} <br>
+        Name : {{ user.first_name }} {{ user.last_name }} <br>
+        full url : {{ full_url }} <br>
+        user cookies : {{user_cookies}} <br>
+    </p>
+    <form method="POST" action="{% url 'logout' %}">
+        {% csrf_token %}
+        <button type="submit">Logout</button>
+    </form>
+</body>
+</html>
