@@ -13,7 +13,7 @@ def signup_view(request):
             user = form.save()
             login(request, user)
             return redirect('home')
-    return render(request, 'userauth\signup.html', {'form':form} )
+    return render(request, 'userauth\\signup.html', {'form':form} )
 
         
 def login_view(request):
@@ -24,5 +24,5 @@ def login_view(request):
             user = form.get_user()
             login(request, user)
             return redirect('home')
-    return render(request, 'userauth\login.html', {'form':form} )
+    return render(request, r'userauth\login.html', {'form':form} )
     

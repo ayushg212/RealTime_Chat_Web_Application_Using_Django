@@ -22,24 +22,28 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-ksy!t&1^)rfe)1tto&-!&te-rsurc2xs=7#bcmeac8wwbo3jo^'
 
+# Time must be in seconds, 60 means 1 minute
+ONLINE_USERS_TIME_DELTA = 5
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
 ALLOWED_HOSTS = []
 
+# docker command : docker run --rm -p 6379:6379 redis:7
 
 # Application definition
 
 INSTALLED_APPS = [
-    'channels',
-    'userauth',
-    'chatapp',
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'userauth',
+    'chatapp',
 ]
 
 MIDDLEWARE = [
@@ -76,10 +80,21 @@ ASGI_APPLICATION = 'chatProject.asgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#     }
+# }
+
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'chatProject_db',
+        'USER': 'chatProject_user',
+        'PASSWORD': 'realtime@123#chatProject',
+        'HOST': 'localhost',
+        'PORT': '3306',
     }
 }
 
@@ -108,7 +123,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Kolkata'
 
 USE_I18N = True
 
@@ -137,3 +152,9 @@ CHANNEL_LAYERS = {
         },
     },
 }
+
+# CHANNEL_LAYERS = {
+#     "default": {
+#         "BACKEND": "channels.layers.InMemoryChannelLayer"
+#     }
+# }

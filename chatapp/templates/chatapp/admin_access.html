@@ -1,0 +1,354 @@
+
+{% extends "chatapp\\base.html" %}
+
+
+{% block title %}
+    Admin Access - {{ group.name }}
+{% endblock title %}
+
+
+{% block content %}
+    <div class="container">
+        <h1>Admin Access for Group: {{ group.name }}</h1>
+        
+        <!-- Group Description Section -->
+        <div class="section">
+            <h2>Group Description</h2>
+            <div>
+                <textarea id="description-input" rows="4" cols="50" disabled>{{ group.description }}</textarea>
+                <button type="button" id="change-description">Change</button>
+                <button type="button" id="update-description" style="display:none;">Update Description</button>
+            </div>
+        </div>
+
+        <!-- Admins List -->
+        <div class="section">
+            <h2>Admins</h2>
+            <div id="admins">
+                {% for admin in admins %}
+                    <div class="admin" id="admin-{{ admin.id }}">
+                        <span><a href="/profile/{{ admin.id }}">{{ admin.username }}</a></span>
+                        <button class="remove-admin" data-user-id="{{ admin.id }}">Remove Admin Rights</button>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Members List -->
+        <div class="section">
+            <h2>Members</h2>
+            <div id="members">
+                {% for member in members %}
+                    <div class="member" id="member-{{ member.id }}">
+                        <span><a href="/profile/{{ member.id }}">{{ member.username }}</a></span>
+                        <button class="add-admin" data-user-id="{{ member.id }}">Add Admin</button>
+                        <button class="remove-member" data-user-id="{{ member.id }}">Remove from Group</button>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Join Requests List -->
+        <div class="section">
+            <h2>Join Requests</h2>
+            <div id="join-requests">
+                {% for request in join_requests %}
+                    <div class="request" id="request-{{ request.id }}">
+                        <span><a href="/profile/{{ request.user.id }}">{{ request.user.username }}</a></span>
+                        <button class="accept-request" data-request-id="{{ request.id }}">Accept Request</button>
+                        <button class="reject-request" data-request-id="{{ request.id }}">Reject Request</button>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- User Search -->
+        <div class="section">
+            <h2>Add Members</h2>
+            <input type="text" id="user-search" placeholder="Search for users..." autocomplete="off">
+            <div id="search-results"></div>
+        </div>
+    </div>
+{% endblock content %}
+
+
+{% block script %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const groupId = "{{ group.id }}";
+            const adminSocket = new WebSocket(
+                'ws://' + window.location.host + '/ws/group/' + groupId + '/admin/'
+            );
+
+            function disableAllButtons() {
+                const buttons = document.querySelectorAll('button:not(#change-description)');
+                buttons.forEach(button => {
+                    button.disabled = true;
+                });
+            }
+
+            function enableAllButtons() {
+                const buttons = document.querySelectorAll('button');
+                buttons.forEach(button => {
+                    button.disabled = false;
+                });
+            }
+
+            // Change and Update description handlers
+            document.getElementById('change-description').onclick = function() {
+                document.getElementById('description-input').disabled = false;
+                document.getElementById('change-description').style.display = 'none';
+                document.getElementById('update-description').style.display = 'inline';
+            };
+
+            document.getElementById('update-description').onclick = function() {
+                const description = document.getElementById('description-input').value;
+                adminSocket.send(JSON.stringify({
+                    'type': 'update_description',
+                    'description': description
+                }));
+                disableAllButtons();
+            };
+
+            // Event delegation for buttons
+            document.body.addEventListener('click', function(event) {
+                if (event.target.tagName === 'BUTTON' && event.target.id !== 'change-description') {
+                    disableAllButtons();
+                }
+                if (event.target.classList.contains('remove-admin')) {
+                    const userId = event.target.getAttribute('data-user-id');
+                    adminSocket.send(JSON.stringify({
+                        'type': 'remove_admin',
+                        'user_id': userId
+                    }));
+                } else if (event.target.classList.contains('add-admin')) {
+                    const userId = event.target.getAttribute('data-user-id');
+                    adminSocket.send(JSON.stringify({
+                        'type': 'add_admin',
+                        'user_id': userId
+                    }));
+                } else if (event.target.classList.contains('remove-member')) {
+                    const userId = event.target.getAttribute('data-user-id');
+                    adminSocket.send(JSON.stringify({
+                        'type': 'remove_member',
+                        'user_id': userId
+                    }));
+                } else if (event.target.classList.contains('accept-request')) {
+                    const requestId = event.target.getAttribute('data-request-id');
+                    adminSocket.send(JSON.stringify({
+                        'type': 'accept_request',
+                        'request_id': requestId
+                    }));
+                } else if (event.target.classList.contains('reject-request')) {
+                    const requestId = event.target.getAttribute('data-request-id');
+                    adminSocket.send(JSON.stringify({
+                        'type': 'reject_request',
+                        'request_id': requestId
+                    }));
+                } else if (event.target.classList.contains('add-member')) {
+                    const userId = event.target.getAttribute('data-user-id');
+                    adminSocket.send(JSON.stringify({
+                        'type': 'add_member',
+                        'user_id': userId
+                    }));
+                }
+            });
+
+            // User search
+            const userSearchInput = document.getElementById('user-search');
+            userSearchInput.onkeyup = function() {
+                const query = this.value;
+                if (query.length > 2) {
+                    adminSocket.send(JSON.stringify({
+                        'type': 'search_user',
+                        'query': query
+                    }));
+                } else {
+                    document.getElementById('search-results').innerHTML = '';
+                }
+            };
+
+            adminSocket.onmessage = function(e) {
+                const data = JSON.parse(e.data);
+                
+                // Handle various updates
+                if (data.type === 'description_updated') {
+                    document.getElementById('description-input').value = data.description;
+                    document.getElementById('description-input').disabled = true;
+                    document.getElementById('change-description').style.display = 'inline';
+                    document.getElementById('update-description').style.display = 'none';
+                    enableAllButtons();
+                } else if (data.type === 'admin_added') {
+                    addAdminToList(data.admin);
+                    enableAllButtons();
+                } else if (data.type === 'admin_removed') {
+                    removeAdminFromList(data.admin_id);
+                    enableAllButtons();
+                } else if (data.type === 'member_added'){
+                    addMemberToList(data.member);
+                    removeUserFromSearchlist(data.member.id);
+                    enableAllButtons();
+                } else if (data.type === 'member_removed') {
+                    removeMemberFromList(data.member_id);
+                    enableAllButtons();
+                } else if (data.type === 'request_added'){
+                    addRequestToList(data.request_id, data.user);
+                    enableAllButtons();
+                } else if (data.type === 'request_removed') {
+                    removeRequestFromList(data.request_id);
+                    enableAllButtons();
+                } else if (data.type === 'search_results') {
+                    displaySearchResults(data.results);
+                    enableAllButtons();
+                }
+            };
+
+            function addAdminToList(admin) {
+                const div = document.getElementById('admin-' + admin.id);
+                if(div){
+                    return;
+                }
+                const adminDiv = document.createElement('div');
+                adminDiv.className = 'admin';
+                adminDiv.id = 'admin-' + admin.id;
+                adminDiv.innerHTML = `<span><a href="/profile/${admin.id}">${admin.username}</a></span>
+                                      <button class="remove-admin" data-user-id="${admin.id}">Remove Admin Rights</button>`;
+                document.getElementById('admins').appendChild(adminDiv);
+            }
+
+            function removeAdminFromList(userId) {
+                const adminDiv = document.getElementById('admin-' + userId);
+                if (adminDiv) adminDiv.remove();
+            }
+
+            function removeMemberFromList(userId) {
+                const memberDiv = document.getElementById('member-' + userId);
+                if (memberDiv) memberDiv.remove();
+            }
+
+            function removeRequestFromList(requestId) {
+                const requestDiv = document.getElementById('request-' + requestId);
+                if (requestDiv) requestDiv.remove();
+            }
+
+            function removeUserFromSearchlist(userId) {
+                const userDiv = document.getElementById('search-result-' + userId);
+                if (userDiv) userDiv.remove();
+            }
+
+            function addRequestToList(request_id, user){
+                const div = document.getElementById('request-' + request_id);
+                if(div){
+                    return;
+                }
+                const requestDiv = document.createElement('div');
+                requestDiv.className = 'request';
+                requestDiv.id = 'request-' + request_id;
+                requestDiv.innerHTML = `<span><a href="/profile/${user.id}">${user.username}</a></span>
+                                        <button class="accept-request" data-request-id="${request_id}">Accept Request</button>
+                                        <button class="reject-request" data-request-id="${request_id}">Reject Request</button>`;
+                document.getElementById('join-requests').appendChild(requestDiv);
+            }
+
+            function addMemberToList(member) {
+                const div = document.getElementById('member-' + member.id);
+                if(div){
+                    return;
+                }
+                const memberDiv = document.createElement('div');
+                memberDiv.className = 'member';
+                memberDiv.id = 'member-' + member.id;
+                memberDiv.innerHTML = `<span><a href="/profile/${member.id}">${member.username}</a></span>
+                                       <button class="add-admin" data-user-id="${member.id}">Add Admin</button>
+                                       <button class="remove-member" data-user-id="${member.id}">Remove from Group</button>`;
+                document.getElementById('members').appendChild(memberDiv);
+            }
+
+            function displaySearchResults(results) {
+                const searchResultsDiv = document.getElementById('search-results');
+                searchResultsDiv.innerHTML = '';
+                results.forEach(user => {
+                    const userDiv = document.createElement('div');
+                    userDiv.className = 'search-result';
+                    userDiv.id = 'search-result-' + user.id;
+                    userDiv.innerHTML = `<span><a href="/profile/${user.id}">${user.username}</a></span>
+                                         <button class="add-member" data-user-id="${user.id}">Add Member</button>`;
+                    searchResultsDiv.appendChild(userDiv);
+                });
+            }
+        });
+    </script>
+{% endblock script %}
+
+
+{% block style %}
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 800px;
+            margin-top: 20px;
+            margin-bottom: 20px;
+            background-color: #fff;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            border-radius: 20px;
+        }
+        h1 {
+            color: #007bff;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .section {
+            margin-bottom: 20px;
+        }
+        .section h2 {
+            color: #007bff;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 5px;
+            margin-bottom: 10px;
+        }
+        .admin, .member, .request, .search-result {
+            padding: 10px;
+            border-bottom: 1px solid #ccc;
+        }
+        .admin:last-child, .member:last-child, .request:last-child, .search-result:last-child {
+            border-bottom: none;
+        }
+        button {
+            margin-left: 10px;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #user-search {
+            width: 100%;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            margin-bottom: 10px;
+        }
+        #search-results {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #fafafa;
+            padding: 10px;
+        }
+        #description-input {
+            width: 100%;
+            box-sizing: border-box;
+        }
+    </style>
+{% endblock style %}

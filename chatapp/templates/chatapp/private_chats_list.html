@@ -1,0 +1,145 @@
+{% extends "chatapp\\base.html" %}
+
+{% block title %}
+    Private Chats
+{% endblock title %}
+
+{% block content %}
+    <div class="container mt-4">
+        <h2>My Private Chats</h2>
+        <div id="chat-rooms" class="row">
+            {% for chat in chat_rooms %}
+            <div class="col-md-4" data-last-activity="{{ chat.last_activity }}" id="chat-room-{{ chat.id }}">
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ chat.username }}</h5>
+                        <p class="card-text" id="last-seen-{{ chat.username }}" data-last-seen="{{ chat.last_seen }}"><small class="text-muted">Last Seen: {{ chat.last_seen_human }}</small></p>
+                        {% if chat.unread_count > 0 %}
+                        <p class="card-text">Unread Messages: <span id="unread-count-{{ chat.id }}">{{ chat.unread_count }}</span></p>
+                        {% endif %}
+                        <a href="/private_chat/{{ chat.username }}" class="btn btn-primary">Chat</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+{% endblock content %}
+
+{% block script %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const chatSocket = new WebSocket(
+                'ws://' + window.location.host + '/ws/private_chats/'
+            );
+
+            chatSocket.onopen = function() {
+                console.log('WebSocket connected');
+            };
+
+            chatSocket.onmessage = function(e) {
+                const data = JSON.parse(e.data);
+                if (data.type === 'unread_count_incremented') {
+                    incrementUnreadCount(data.chat_id);
+                } else if (data.type === 'last_activity_updated') {
+                    updateLastActivity(data.chat_id, data.last_activity);
+                } else if (data.type === 'new_chat_added') {
+                    addNewChat(data.chat);
+                } else if (data.type === 'last_seen_updated') {
+                    updateLastSeen(data.chat_username, data.last_seen);
+                }
+            };
+
+            function incrementUnreadCount(chatId) {
+                const unreadCountElement = document.getElementById(`unread-count-${chatId}`);
+                if (unreadCountElement) {
+                    let count = parseInt(unreadCountElement.textContent);
+                    unreadCountElement.textContent = count + 1;
+                } else {
+                    const chatRoom = document.getElementById(`chat-room-${chatId}`);
+                    const newUnreadCountElement = document.createElement('p');
+                    newUnreadCountElement.className = 'card-text';
+                    newUnreadCountElement.innerHTML = `Unread Messages: <span id="unread-count-${chatId}">1</span>`;
+                    chatRoom.querySelector('.card-body').insertBefore(newUnreadCountElement, chatRoom.querySelector('.btn'));
+                }
+            }
+
+            function updateLastActivity(chatId, lastActivity) {
+                const chatRoom = document.getElementById(`chat-room-${chatId}`);
+                if (chatRoom) {
+                    chatRoom.setAttribute('data-last-activity', lastActivity);
+                    sortChats();
+                }
+            }
+
+            function addNewChat(chat) {
+                const div = document.getElementById('chat-room-${chat.id}');
+                if (div) {
+                    return;
+                }
+                const chatRoomsDiv = document.getElementById('chat-rooms');
+                chatRoomsDiv.innerHTML += `
+                    <div class="col-md-4" data-last-activity="${chat.last_activity}" id="chat-room-${chat.id}">
+                        <div class="card mb-4">
+                            <div class="card-body">
+                                <h5 class="card-title">${chat.username}</h5>
+                                <p class="card-text" id="last-seen-${chat.username}" data-last-seen="${chat.last_seen}"><small class="text-muted">Last Seen: ${timeAgo(new Date(chat.last_seen))}</small></p>
+                                ${chat.unread_count > 0 ? `<p class="card-text">Unread Messages: <span id="unread-count-${chat.id}">${chat.unread_count}</span></p>` : ''}
+                                <a href="/private_chat/${chat.id}" class="btn btn-primary">Chat</a>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                sortChats();
+            }
+
+            function updateLastSeen(chatUsername, lastSeen) {
+                const lastSeenElement = document.getElementById(`last-seen-${chatUsername}`);
+                if (lastSeenElement) {
+                    lastSeenElement.setAttribute('data-last-seen', lastSeen);
+                    lastSeenElement.innerHTML = `<small class="text-muted">Last Seen: ${timeAgo(new Date(lastSeen))}</small>`;
+                }
+            }
+
+            function sortChats() {
+                const chatRoomsDiv = document.getElementById('chat-rooms');
+                const chatRooms = Array.from(chatRoomsDiv.children);
+
+                chatRooms.sort((a, b) => {
+                    const aLastActivity = new Date(a.getAttribute('data-last-activity'));
+                    const bLastActivity = new Date(b.getAttribute('data-last-activity'));
+                    return bLastActivity - aLastActivity;
+                });
+
+                chatRooms.forEach(chatRoom => chatRoomsDiv.appendChild(chatRoom));
+            }
+
+            function timeAgo(date) {
+                const now = new Date();
+                const seconds = Math.floor((now - date) / 1000);
+                let interval = Math.floor(seconds / 31536000);
+
+                if (interval > 1) return `${interval} years ago`;
+                interval = Math.floor(seconds / 2592000);
+                if (interval > 1) return `${interval} months ago`;
+                interval = Math.floor(seconds / 86400);
+                if (interval > 1) return `${interval} days ago`;
+                interval = Math.floor(seconds / 3600);
+                if (interval > 1) return `${interval} hours ago`;
+                interval = Math.floor(seconds / 60);
+                if (interval > 1) return `${interval} minutes ago`;
+                if (seconds < 60) return 'Online';
+                return `${Math.floor(seconds)} seconds ago`;
+            }
+
+            // Auto-update last seen every minute
+            setInterval(function() {
+                const lastSeenElements = document.querySelectorAll('[id^="last-seen-"]');
+                lastSeenElements.forEach(el => {
+                    const lastSeen = new Date(el.getAttribute('data-last-seen'));
+                    el.innerHTML = `<small class="text-muted">Last Seen: ${timeAgo(lastSeen)}</small>`;
+                });
+            }, 60000); // Update every 60 seconds
+        });
+    </script>
+{% endblock script %}

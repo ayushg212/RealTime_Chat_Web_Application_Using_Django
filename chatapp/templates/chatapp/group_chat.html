@@ -1,0 +1,370 @@
+
+{% extends "chatapp\\base.html" %}
+
+{% block title %} 
+    Group Chat - {{ group.name }}
+{% endblock title %}
+
+{% block content %}
+    <div id="chat-container">
+        <div id="chat-log-container">
+            <div class="links">
+                <a href="/group/{{ group.id }}/about/">About Group</a>
+                {% if is_admin %}
+                    <a href="/group/{{ group.id }}/admin/" id="admin-access" >Admin Access</a>
+                {% endif %}
+            </div>
+            <h2>{{ group.name }}</h2>
+            <div id="chat-log"></div>
+            <textarea id="chat-message-input" placeholder="Type your message..." autocomplete="off"></textarea>
+            <button id="send-button">Send</button>
+        </div>
+        <div id="online-users-container">
+            <br>
+            <h3>Online Members</h3>
+            <div id="online-users"></div>
+        </div>
+    </div>
+{% endblock content %}
+
+{% block script %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const group_no = "{{ group.id }}";
+            const isAdmin = "{{ is_admin }}"; 
+            const chatSocket = new WebSocket(
+                'ws://' + 
+                window.location.host + 
+                '/ws/group/' + 
+                group_no + 
+                '/chat/'
+            );
+            const onlineUsersSocket = new WebSocket(
+                'ws://' + 
+                window.location.host + 
+                '/ws/group/' + 
+                group_no + 
+                '/online_members/'
+            );
+
+            const imOnlineSocket = new WebSocket(
+                'ws://' + 
+                window.location.host + 
+                '/ws/imonline/' 
+            );
+
+            chatSocket.onmessage = function(e) {
+                const data = JSON.parse(e.data);
+                console.log("received data: ", data);
+                if (data.type === "previous_messages") {
+                    data.messages.forEach(message => {
+                        console.log("received previous_messages: ");
+                        displayMessage(message);
+                        sendSeenConfirmation(message.id);
+                    });
+                } else if (data.type === 'chat_message') {
+                    displayMessage(data.message);
+                    sendSeenConfirmation(data.message.id);
+                } else if (data.type === 'seen_count_update') {
+                    updateSeenStatus(data.message_id, data.seen_count);
+                }
+            };
+
+            onlineUsersSocket.onmessage = function(e) {
+                const data = JSON.parse(e.data);
+                console.log("Got online users, users: ", data)
+                if (data.type === 'online_members') {
+                    displayOnlineUsers(data.members);
+                }
+            };
+
+            chatSocket.onclose = function(e) {
+                console.error('Chat socket closed unexpectedly');
+            };
+
+            onlineUsersSocket.onclose = function(e) {
+                console.error('Online users socket closed unexpectedly');
+            };
+
+            document.querySelector('#send-button').onclick = function() {
+                const messageInputDOM = document.querySelector('#chat-message-input');
+                const message = messageInputDOM.value;
+                chatSocket.send(JSON.stringify({
+                    'type' : 'incoming_message',
+                    'message': message
+                }));
+                messageInputDOM.value = '';
+            };
+
+            function displayMessage(message) {
+                const chatLog = document.querySelector('#chat-log');
+                const messageElement = document.createElement('div');
+                const messageType = message.sender === "{{ user.username }}" ? 'sent' : 'received';
+                const seenCountShow = '<small>' + message.seen_count + ' seen</small>';
+                messageElement.className = 'message ' + messageType ;
+                messageElement.id = 'message-' + message.id;
+                messageElement.innerHTML = 
+                    '<div class="sender" id="message-' + message.id + '_sender"><strong>' + message.sender + '</strong></div>' +
+                    '<div class="content" id="message-' + message.id + '_content">' + message.content + '</div>' +
+                    '<div class="timestamp" id="message-' + message.id + '_timestamp"><small>' + new Date(message.timestamp).toLocaleString() + '</small></div>' +
+                    '<div class="seen_count" id="message-' + message.id + '_seen_count">' + seenCountShow + '</div>';
+                chatLog.appendChild(messageElement);
+                chatLog.scrollTop = chatLog.scrollHeight;
+            }
+
+            function updateSeenStatus(messageId, seen_count) {
+                const readStatusElement = document.querySelector('#message-' + messageId + '_seen_count');
+                if (readStatusElement) {
+                    readStatusElement.innerHTML = '<small>' + seen_count + ' seen</small>' ;
+                }
+            }
+
+            function sendSeenConfirmation(messageId) {
+                chatSocket.send(JSON.stringify({
+                    'type': 'seen_confirmation',
+                    'seen_message_id': messageId
+                }));
+            }
+
+            function displayOnlineUsers(users) {
+                const onlineUsersContainer = document.querySelector('#online-users');
+                onlineUsersContainer.innerHTML = '';
+                users.forEach(user => {
+                    const userElement = document.createElement('div');
+                    userElement.className = 'user';
+                    userElement.innerText = user.username;
+                    userElement.onclick = function() {
+                        window.location.href = '/profile/' + user.id + '/';
+                    };
+                    onlineUsersContainer.appendChild(userElement);
+                });
+            }
+
+            setInterval(() => {
+                onlineUsersSocket.send(JSON.stringify({
+                    'type': 'online_users_request'
+                }));
+            }, 2000);
+            setInterval(() => {
+                imOnlineSocket.send(JSON.stringify({
+                    'type': 'i_am_online'
+                }));
+            }, 1000);
+        });
+    </script>
+{% endblock script %}
+
+{% block style %}
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        #chat-container {
+            width: 100%;
+            max-width: 1200px;
+            margin: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: row;
+            background-color: #fff;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+        }
+
+        #chat-log-container {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            margin-right: 20px;
+        }
+
+        #chat-log {
+            height: 400px;
+            overflow-y: scroll;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 20px;
+            background-color: #fafafa;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .message {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+            word-break: break-all;
+        }
+
+        .message.sent {
+            background-color: #d1ffd6;
+            align-self: flex-end;
+            text-align: right;
+        }
+
+        .message.received {
+            background-color: #e6e6e6;
+            align-self: flex-start;
+        }
+
+        .message.read {
+            border: 1px solid #28a745;
+        }
+
+        .message.unread {
+            border: 1px solid #dc3545;
+        }
+
+        .message .sender {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .message .content {
+            margin: 5px 0;
+            color: #333;
+            white-space: pre-wrap; /* Preserve newlines and spaces */
+        }
+
+        .message .timestamp {
+            font-size: 0.8em;
+            color: #888;
+        }
+
+        .message .seen_count {
+            font-size: 0.8em;
+            color: #888;
+        }
+
+        #chat-message-input {
+            width: 100%;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            margin-bottom: 10px;
+            resize: none;
+            height: 60px;
+            font-size: 14px;
+        }
+
+        #send-button {
+            width: 100%;
+            padding: 10px;
+            border-radius: 5px;
+            border: none;
+            background-color: #007bff;
+            color: #fff;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        #send-button:hover {
+            background-color: #0056b3;
+        }
+
+        #online-users-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #online-users {
+            height: 400px;
+            overflow-y: scroll;
+            border: 1px solid #ccc;
+            padding: 10px;
+            background-color: #fafafa;
+        }
+
+        .user {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+            background-color: #e6e6e6;
+            cursor: pointer;
+        }
+
+        .user:hover {
+            background-color: #d1d1d1;
+        }
+
+        .links {
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .links a {
+            padding: 10px 15px;
+            border-radius: 5px;
+            background-color: #007bff;
+            color: #fff;
+            text-decoration: none;
+            font-size: 16px;
+        }
+
+        .links a:hover {
+            background-color: #0056b3;
+        }
+
+        #chat-log-container h2 {
+            text-align: center;
+            color: #007bff;
+            margin-bottom: 20px;
+        }
+
+        #online-users-container h3 {
+            text-align: center;
+            color: #007bff;
+            margin-bottom: 20px;
+        }
+
+        @media screen and (max-width: 600px) {
+            #chat-container {
+                flex-direction: column;
+            }
+
+            #chat-log-container, #online-users-container {
+                width: 100%;
+                margin: 0;
+            }
+
+            #chat-log {
+                height: 300px;
+            }
+
+            #online-users {
+                height: 200px;
+            }
+
+            #chat-message-input {
+                font-size: 12px;
+                height: 50px;
+            }
+
+            #send-button {
+                font-size: 14px;
+            }
+
+            .links {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .links a {
+                margin-bottom: 10px;
+                width: 100%;
+                text-align: center;
+            }
+        }
+    </style>
+{% endblock style %}

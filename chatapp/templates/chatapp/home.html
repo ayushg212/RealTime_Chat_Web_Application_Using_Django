@@ -1,20 +1,293 @@
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Home</title>
-</head>
-<body>
-    <h2>Home</h2>
-    <p>Welcome to the home page!</p>
-    <p> Username : {{ user.username }} <br>
-        Name : {{ user.first_name }} {{ user.last_name }} <br>
-        full url : {{ full_url }} <br>
-        user cookies : {{user_cookies}} <br>
-    </p>
-    <form method="POST" action="{% url 'logout' %}">
-        {% csrf_token %}
-        <button type="submit">Logout</button>
-    </form>
-</body>
-</html>
+{% extends "chatapp\\base.html" %}
+
+{% block title %}
+    Home
+{% endblock title %}
+
+{% block content %}
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Online Users -->
+            <div class="col-md-12 mt-3">
+                <h2>Online Users</h2>
+                <div id="online-users" class="d-flex flex-wrap">
+                    <!-- Online user cards will be dynamically inserted here -->
+                </div>
+            </div>
+            <!-- Random Users and User Search -->
+            <div class="col-md-6 mt-3">
+                <h2>Users you may know</h2>
+                <input type="text" id="user-search" placeholder="Search for users..." class="form-control mb-3">
+                <div id="user-results" class="d-flex flex-wrap">
+                    <!-- User cards will be dynamically inserted here -->
+                </div>
+            </div>
+            <!-- Random Groups and Group Search -->
+            <div class="col-md-6 mt-3">
+                <h2>Groups you may like</h2>
+                <input type="text" id="group-search" placeholder="Search for groups..." class="form-control mb-3">
+                <div id="group-results" class="d-flex flex-wrap">
+                    <!-- Group cards will be dynamically inserted here -->
+                </div>
+            </div>
+            
+        </div>
+    </div>
+{% endblock content %}
+
+{% block script %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const userSocket = new WebSocket(
+                'ws://' + window.location.host + '/ws/home/users/'
+            );
+            const groupSocket = new WebSocket(
+                'ws://' + window.location.host + '/ws/home/groups/'
+            );
+            const onlineUserSocket = new WebSocket(
+                'ws://' + window.location.host + '/ws/home/online_users/'
+            );
+
+            onlineUserSocket.onopen = function(){
+                console.log("Online connected");
+                onlineUserSocket.send(JSON.stringify({
+                    'type' : 'get_online_users'
+                }));
+            };
+
+            groupSocket.onopen = function(){
+                console.log("GroupSocket connected")
+                groupSocket.send(JSON.stringify({
+                    'type' : 'get_groups'
+                }));
+            };
+
+            userSocket.onopen = function() {
+                console.log('UserSocket connected');
+                userSocket.send(JSON.stringify({
+                    'type': 'get_users'
+                }));
+            };
+
+            userSocket.onmessage = function(e) {
+                const data = JSON.parse(e.data);
+                if (data.type === 'last_seen_updated') {
+                    updateLastSeen(data.user_id, new Date(data.last_seen));
+                } else {
+                    const userResults = document.getElementById('user-results');
+                    userResults.innerHTML = '';
+                    data.users.forEach(user => {
+                        userResults.innerHTML += `
+                            <div class="card m-2 p-2">
+                                <div class="card-body">
+                                    <h5 class="card-title">${user.username}</h5>
+                                    <p class="card-text">${user.name}</p>
+                                    <p class="card-text" id="user-${user.id}-last-seen" data-last-seen="${new Date(user.last_seen).toISOString()}"><small class="text-muted">Last Seen: ${timeAgo(new Date(user.last_seen))}</small></p>
+                                    <a href="/private_chat/${user.username}" class="btn btn-primary">Chat</a>
+                                    <a href="/profile/${user.id}" class="btn btn-secondary">Profile View</a>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+            };
+
+            groupSocket.onmessage = function(e) {
+                const data = JSON.parse(e.data);
+                if (data.type === 'update_status') {
+                    updateGroupButton(data.group_id, data.status);
+                } else if (data.type === 'message_count_increased') {
+                    increaseMessageCount(data.group_id);
+                } else if (data.type === 'message_count_decreased') {
+                    decreaseMessageCount(data.group_id);
+                } else if (data.type === 'member_count_increased') {
+                    increaseMemberCount(data.group_id);
+                } else if (data.type === 'member_count_decreased') {
+                    decreaseMemberCount(data.group_id);
+                } else {
+                    const groupResults = document.getElementById('group-results');
+                    groupResults.innerHTML = '';
+                    data.groups.forEach(group => {
+                        const groupButton = generateGroupButton(group.id, group.status);
+                        groupResults.innerHTML += `
+                            <div class="card m-2 p-2" id="group-${group.id}" >
+                                <div class="card-body">
+                                    <h5 class="card-title" id="group-${group.id}-name">${group.name}</h5>
+                                    <p class="card-text" id="group-${group.id}-creator">Creator: ${group.creator}</p>
+                                    <p class="card-text" id="group-${group.id}-members-count">Members: ${group.members_count}</p>
+                                    <p class="card-text" id="group-${group.id}-messages-count">Messages: ${group.messages_count}</p>
+                                    <a href="/group/${group.id}/about" class="btn btn-info" id="group-${group.id}-about">About Group</a>
+                                    <div id="group-${group.id}-action">${groupButton}</div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+            };
+
+            onlineUserSocket.onmessage = function(e) {
+                const data = JSON.parse(e.data);
+                const onlineUsers = document.getElementById('online-users');
+                onlineUsers.innerHTML = '';
+                data.online_users.forEach(user => {
+                    onlineUsers.innerHTML += `
+                        <div class="card m-2 p-2">
+                            <div class="card-body">
+                                <h5 class="card-title">${user.username}</h5>
+                            </div>
+                        </div>
+                    `;
+                });
+            };
+
+            document.getElementById('user-search').addEventListener('input', function() {
+                const query = this.value;
+                userSocket.send(JSON.stringify({
+                    'type': 'search_users',
+                    'query': query
+                }));
+            });
+
+            document.getElementById('group-search').addEventListener('input', function() {
+                const query = this.value;
+                groupSocket.send(JSON.stringify({
+                    'type': 'search_groups',
+                    'query': query
+                }));
+            });
+
+            function generateGroupButton(groupId, status) {
+                let button;
+                switch(status) {
+                    case 'member':
+                        button = `<a href="/group/${groupId}/chat" class="btn btn-primary m-1" id="group-${groupId}-chat">Chat</a>`;
+                        break;
+                    case 'not_member':
+                        button = `<button class="btn btn-success m-1" id="group-${groupId}-join" onclick="requestToJoin(${groupId})">Request to Join</button>`;
+                        break;
+                    case 'requested':
+                        button = `<button class="btn btn-danger m-1" id="group-${groupId}-cancel-request" onclick="cancelRequest(${groupId})">Cancel Request</button>`;
+                        break;
+                    default:
+                        button = '';
+                }
+                return button;
+            }
+
+            function updateLastSeen(user_id, last_seen) {
+                const lastSeenDiv = document.getElementById(`user-${user_id}-last-seen`);
+                if (lastSeenDiv) {
+                    lastSeenDiv.setAttribute('data-last-seen', last_seen.toISOString());
+                    lastSeenDiv.innerHTML = `<small class="text-muted">Last Seen: ${timeAgo(last_seen)}</small>`;
+                }
+            }
+
+            function updateGroupButton(groupId, status) {
+                const groupActionDiv = document.getElementById(`group-${groupId}-action`);
+                if (groupActionDiv) {
+                    groupActionDiv.innerHTML = generateGroupButton(groupId, status);
+                }
+            }
+
+            function increaseMessageCount(groupId) {
+                const messageCountElement = document.getElementById(`group-${groupId}-messages-count`);
+                if (messageCountElement) {
+                    let count = parseInt(messageCountElement.innerText.split(': ')[1]);
+                    count++;
+                    messageCountElement.innerText = `Messages: ${count}`;
+                }
+            }
+
+            function decreaseMessageCount(groupId) {
+                const messageCountElement = document.getElementById(`group-${groupId}-messages-count`);
+                if (messageCountElement) {
+                    let count = parseInt(messageCountElement.innerText.split(': ')[1]);
+                    count--;
+                    messageCountElement.innerText = `Messages: ${count}`;
+                }
+            }
+
+            function increaseMemberCount(groupId) {
+                const memberCountElement = document.getElementById(`group-${groupId}-members-count`);
+                if (memberCountElement) {
+                    let count = parseInt(memberCountElement.innerText.split(': ')[1]);
+                    count++;
+                    memberCountElement.innerText = `Members: ${count}`;
+                }
+            }
+
+            function decreaseMemberCount(groupId) {
+                const memberCountElement = document.getElementById(`group-${groupId}-members-count`);
+                if (memberCountElement) {
+                    let count = parseInt(memberCountElement.innerText.split(': ')[1]);
+                    count--;
+                    memberCountElement.innerText = `Members: ${count}`;
+                }
+            }
+
+            window.requestToJoin = function(groupId) {
+                groupSocket.send(JSON.stringify({
+                    'type': 'request_to_join',
+                    'group_id': groupId
+                }));
+            }
+
+            window.cancelRequest = function(groupId) {
+                groupSocket.send(JSON.stringify({
+                    'type': 'cancel_request',
+                    'group_id': groupId
+                }));
+            }
+
+            function timeAgo(date) {
+                const now = new Date();
+                const seconds = Math.floor((now - date) / 1000);
+                let interval = Math.floor(seconds / 31536000);
+
+                if (interval > 1) return `${interval} years ago`;
+                interval = Math.floor(seconds / 2592000);
+                if (interval > 1) return `${interval} months ago`;
+                interval = Math.floor(seconds / 86400);
+                if (interval > 1) return `${interval} days ago`;
+                interval = Math.floor(seconds / 3600);
+                if (interval > 1) return `${interval} hours ago`;
+                interval = Math.floor(seconds / 60);
+                if (interval > 1) return `${interval} minutes ago`;
+                if (seconds < 60) return 'Online';
+                return `${Math.floor(seconds)} seconds ago`;
+            }
+
+            // Auto-update last seen every minute
+            setInterval(function() {
+                const lastSeenElements = document.querySelectorAll('[id^="user-"][id$="-last-seen"]');
+                lastSeenElements.forEach(el => {
+                    const lastSeen = new Date(el.getAttribute('data-last-seen'));
+                    el.innerHTML = `<small class="text-muted">Last Seen: ${timeAgo(lastSeen)}</small>`;
+                });
+            }, 60000); // Update every 60 seconds
+        });
+    </script>
+{% endblock script %}
+
+{% block style %}
+    <style>
+        .card {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin: 10px;
+            border-radius: 5px;
+            max-width: 100%; /* Ensure the card does not exceed the container width */
+            word-wrap: break-word; /* Break words when they are too long */
+            white-space: normal; /* Allow the text to wrap normally */
+        }
+        .card-body {
+            padding: 0px;
+        }
+        .card-title {
+            font-size: 1.25rem; /* Make sure the title stands out */
+        }
+        .card-text {
+            font-size: 1rem; /* Ensure the text is readable */
+        }
+    </style>
+{% endblock style %}

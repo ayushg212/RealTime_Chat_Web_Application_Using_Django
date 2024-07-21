@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import UserActivity, Group, GroupMessage
+from .models import UserActivity, Group, GroupMessage, PrivateChatRoom
 from .models import PrivateMessage,GroupMember, MessageReadTracking, GroupJoinRequest
 from django.core.exceptions import ValidationError
 
@@ -13,8 +13,13 @@ class UserActivityAdmin(admin.ModelAdmin):
 
 @admin.register(Group)
 class GroupAdmin(admin.ModelAdmin):
-    list_display = ('name', 'creator')
+    list_display = ('name', 'creator', 'created_at', 'last_activity')
     search_fields = ('name', 'creator__username')
+
+@admin.register(PrivateChatRoom)
+class PrivateChatRoomAdmin(admin.ModelAdmin):
+    list_display = ('room_name', 'member1', 'member2')
+    search_fields = ('member1__username', 'member2__username', 'room_name')
 
 @admin.register(GroupMember)
 class GroupUserAdmin(admin.ModelAdmin):
@@ -23,7 +28,7 @@ class GroupUserAdmin(admin.ModelAdmin):
 
 @admin.register(GroupMessage)
 class GroupMessageAdmin(admin.ModelAdmin):
-    list_display = ('sender', 'group', 'timestamp')
+    list_display = ('sender', 'group', 'timestamp', 'seen_count')
     search_fields = ('sender__username', 'group__name')
 
 @admin.register(MessageReadTracking)
@@ -33,8 +38,8 @@ class MessageReadTrackingAdmin(admin.ModelAdmin):
 
 @admin.register(PrivateMessage)
 class PrivateMessageAdmin(admin.ModelAdmin):
-    list_display = ('sender', 'receiver', 'timestamp', 'read')
-    search_fields = ('sender__username', 'receiver__username', 'content')
+    list_display = ('sender', 'room', 'timestamp', 'read')
+    search_fields = ('sender__username', 'room__room_name', 'content')
 
 @admin.register(GroupJoinRequest)
 class GroupJoinRequestAdmin(admin.ModelAdmin):
@@ -54,3 +59,5 @@ class GroupJoinRequestAdmin(admin.ModelAdmin):
         for join_request in queryset:
             join_request.reject()
     reject_requests.short_description = 'Reject selected join requests'
+
+    
