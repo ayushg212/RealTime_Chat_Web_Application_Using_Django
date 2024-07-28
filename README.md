@@ -102,3 +102,5 @@ Make sure you have the following installed:
 
 ![online_people_in_grp](https://github.com/user-attachments/assets/28e5870f-6f03-46b4-9063-fb3888a3b77d)
 
+![search_user_and_grp](https://github.com/user-attachments/assets/f593cf03-6a8e-405c-a8a4-44bc87fb98bf)
+
