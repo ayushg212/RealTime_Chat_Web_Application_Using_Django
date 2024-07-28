@@ -72,3 +72,33 @@ Make sure you have the following installed:
 
 6. Open your browser and navigate to `http://localhost:8000` to start using the application.
 
+## Screenshots of Application
+
+![signup](https://github.com/user-attachments/assets/cf23850d-cdf0-4a5b-8e08-ed545b9d6360)
+
+![login_page](https://github.com/user-attachments/assets/fb638643-ce5a-4afe-9ad9-f5b1d5430cf2)
+
+![private_chats](https://github.com/user-attachments/assets/e4c88be2-4a2b-466f-b5dd-8df3908df122)
+
+![priavte_chat_between_2_users](https://github.com/user-attachments/assets/e4fcf3a0-e600-477e-b019-5d849f16653c)
+
+![pending_request](https://github.com/user-attachments/assets/0f4ab06a-b613-4a64-86c4-d0f970fb3539)
+
+![measagw_details](https://github.com/user-attachments/assets/46063d2c-003c-45e8-ae70-2415efd83a4a)
+
+![home_page_2](https://github.com/user-attachments/assets/b74aef0c-b292-4609-8aa9-e96b36c354c7)
+
+![home_page](https://github.com/user-attachments/assets/c44be5e2-9fa6-4108-8443-fc48cc5c2119)
+
+![grp_chats_name](https://github.com/user-attachments/assets/19b2afcb-507f-4d97-9d9e-c154619593fd)
+
+![group_chatting](https://github.com/user-attachments/assets/cd605c63-bfda-41ed-ac44-95a479b90883)
+
+![create_grp](https://github.com/user-attachments/assets/e46b66dd-1ad9-498b-9215-70feb2719a6d)
+
+![Admin_access_page](https://github.com/user-attachments/assets/547ddeb5-ae9d-4a02-9bde-40dc8e20e858)
+
+![about_grp](https://github.com/user-attachments/assets/0eff76e0-ab24-4f5d-a08c-39c6a74dc5d1)
+
+![online_people_in_grp](https://github.com/user-attachments/assets/28e5870f-6f03-46b4-9063-fb3888a3b77d)
+
