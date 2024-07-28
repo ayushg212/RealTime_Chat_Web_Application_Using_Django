@@ -1,0 +1,95 @@
+{% extends "chatapp\\base.html" %}
+
+{% block title %}
+    Pending Requests
+{% endblock title %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Pending Join Requests</h2>
+    <div id="pending-requests" class="row">
+        {% for request in pending_requests %}
+        <div class="col-md-4" data-request-id="{{ request.id }}">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">{{ request.group.name }}</h5>
+                    <p class="card-text">{{ request.group.description }}</p>
+                    <p class="card-text"><small class="text-muted">Creator: {{ request.group.creator.username }}</small></p>
+                    <button class="btn btn-danger cancel-request-btn" data-request-id="{{ request.id }}">Cancel Join Request</button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock content %}
+
+{% block script %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const socket = new WebSocket(`ws://${window.location.host}/ws/pending_requests/`);
+
+    socket.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        if (data.type === 'request_removed') {
+            document.querySelector(`[data-request-id="${data.request_id}"]`).remove();
+        } else if (data.type === 'request_added') {
+            addRequestElement(data.request_id, data.group);
+        }
+        unfreezeButtons();
+    };
+
+    document.querySelectorAll('.cancel-request-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const requestId = this.getAttribute('data-request-id');
+            freezeButtons();
+            socket.send(JSON.stringify({
+                'type': 'cancel_join_request',
+                'request_id': requestId
+            }));
+            setTimeout(unfreezeButtons, 5000);
+        });
+    });
+
+    function freezeButtons() {
+        document.querySelectorAll('.cancel-request-btn').forEach(button => {
+            button.disabled = true;
+        });
+    }
+
+    function unfreezeButtons() {
+        document.querySelectorAll('.cancel-request-btn').forEach(button => {
+            button.disabled = false;
+        });
+    }
+
+    function addRequestElement(requestId, group) {
+        const requestDiv = document.createElement('div');
+        requestDiv.classList.add('col-md-4');
+        requestDiv.setAttribute('data-request-id', requestId);
+        requestDiv.innerHTML = `
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">${group.name}</h5>
+                    <p class="card-text">${group.description}</p>
+                    <p class="card-text"><small class="text-muted">Creator: ${group.creator}</small></p>
+                    <button class="btn btn-danger cancel-request-btn" data-request-id="${requestId}">Cancel Join Request</button>
+                </div>
+            </div>
+        `;
+        document.getElementById('pending-requests').appendChild(requestDiv);
+
+        // Add click event listener to the new button
+        requestDiv.querySelector('.cancel-request-btn').addEventListener('click', function() {
+            const requestId = this.getAttribute('data-request-id');
+            freezeButtons();
+            socket.send(JSON.stringify({
+                'type': 'cancel_join_request',
+                'request_id': requestId
+            }));
+            //setTimeout(unfreezeButtons, 5000);
+        });
+    }
+});
+</script>
+{% endblock script %}

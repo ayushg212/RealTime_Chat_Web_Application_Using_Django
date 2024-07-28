@@ -1,30 +1,35 @@
-<html>
-<head>
-    <title>Signup</title>
-</head>
+{% extends "userauth/base_auth.html" %}
 
-<body>
-    <h2>Login</h2>
-    <form method="POST">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit">Login</button>
-    </form>
-    {% comment %} <!-- Display form errors -->
-    {% if form.errors %}
-        <div class= "errors">
-            <ul>
-                {% for fields in form %}
-                    {% for errors in fields.errors %}
-                        <li>{{ field.label }} : {{ error }}</li>
-                    {% endfor %}
-                {% endfor %}
-                {% for error in form.non_field_errors %}
-                    <li>{{ error }}</li>
-                {% endfor %}
-            </ul>
+{% block title %}Login{% endblock title %}
+
+{% block content %}
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header text-center">
+                    <h4>Login</h4>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        {{ form.non_field_errors }}
+                        <div class="form-group">
+                            <label for="username">Username</label>
+                            <input type="text" class="form-control" id="username" name="username" required>
+                            {{ form.username.errors }}
+                        </div>
+                        <div class="form-group">
+                            <label for="password">Password</label>
+                            <input type="password" class="form-control" id="password" name="password" required>
+                            {{ form.password.errors }}
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Login</button>
+                    </form>
+                </div>
+                <div class="card-footer text-center">
+                    <p>Don't have an account? <a href="{% url 'signup' %}">Sign up here</a></p>
+                </div>
+            </div>
         </div>
-    {% endif %}  {% endcomment %}
-    
-</body>
-</html>
+    </div>
+{% endblock content %}

@@ -1,6 +1,6 @@
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
-from .models import PrivateMessage, Group, GroupMessage, MessageReadTracking
+from .models import PrivateMessage, ChatGroup, GroupMessage, MessageReadTracking
 from .models import PrivateChatRoom, GroupJoinRequest, GroupMember, UserActivity
 from django.contrib.auth.models import User
 from django.utils import timezone
@@ -12,6 +12,7 @@ import asyncio
 # in seconds
 last_activity_update_interval = 2
 online_user_send_interval = 5
+group_online_members_send_interval = 5
 
 
 class PrivateChatConsumer(AsyncJsonWebsocketConsumer):
@@ -21,29 +22,33 @@ class PrivateChatConsumer(AsyncJsonWebsocketConsumer):
         self.chat_user_username = self.scope['url_route']['kwargs']['username']
         if self.user.is_anonymous:
             await self.close()
+            return
         elif self.user.username == self.chat_user_username:
             await self.close()
-        else:
-            self.chat_user = await self.get_user(self.chat_user_username)
-            self.room_obj = await self.get_private_chat_room_object(self.user,self.chat_user)
-            self.room_name = f'private_chat_{self.room_obj.id}'
-            await self.channel_layer.group_add(
-                self.room_name,
-                self.channel_name
-            )
-            await self.accept()
-            print("PrivateChatConsumer : Connected ........ USER: " , self.user.username)
-            # Send unread messages
-            previous_messages = await self.get_previous_messages()   
-            await self.send_json({
-                'type' : 'previous_messages',
-                'messages' : previous_messages
-            })
-            print("PrivateChatConsumer: Unread message sent to" , self.chat_user_username)
+            return
+        self.chat_user = await self.get_user(self.chat_user_username)
+        self.room_obj = await self.get_private_chat_room_object(self.user,self.chat_user)
+        self.room_name = f'private_chat_{self.room_obj.id}'
+        await self.channel_layer.group_add(
+            self.room_name,
+            self.channel_name
+        )
+        await self.accept()
+        print("PrivateChatConsumer : Connected ........ USER: " , self.user.username)
+        # Send unread messages
+        previous_messages = await self.get_previous_messages()   
+        await self.send_json({
+            'type' : 'previous_messages',
+            'messages' : previous_messages
+        })
+        print("PrivateChatConsumer: Unread message sent to" , self.chat_user_username)
+        self.update_last_activity_task = asyncio.create_task(self.update_user_last_activity())
+
     
     async def disconnect(self, code):
         # leave room group
         print("DIsonnected to consumer" , self.user.username, code)
+        self.update_last_activity_task.cancel()
         await self.channel_layer.group_discard(
             self.room_name,
             self.channel_name
@@ -150,6 +155,15 @@ class PrivateChatConsumer(AsyncJsonWebsocketConsumer):
         member1, member2 = sorted([user1, user2], key = lambda u: u.username)
         room, created = PrivateChatRoom.objects.get_or_create(member1=member1, member2 = member2)
         return room
+    
+    @database_sync_to_async
+    def update_activity(self):
+        self.user.useractivity.update_activity()
+    
+    async def update_user_last_activity(self):
+        while True:
+            await asyncio.sleep(last_activity_update_interval)
+            await self.update_activity()
 
 
 class GroupChatConsumer(AsyncJsonWebsocketConsumer):
@@ -182,8 +196,11 @@ class GroupChatConsumer(AsyncJsonWebsocketConsumer):
             'type' : 'previous_messages',
             'messages' : previous_messages
         })
+        self.update_last_activity_task = asyncio.create_task(self.update_user_last_activity())
+
     
     async def disconnect(self, code):
+        self.update_last_activity_task.cancel()
         print("GroupChatConsumer: SOCKET CONNECTION DISSCONNECTED..........USER : ", self.user.username)
         await self.channel_layer.group_discard(
             self.room_name,
@@ -237,7 +254,7 @@ class GroupChatConsumer(AsyncJsonWebsocketConsumer):
         if msg_obj.group != self.group_obj or  msg_obj.sender == self.user:
             return False,None
         try:
-            MessageReadTracking.objects.create(message = msg_obj, read_by_user = self.user)
+            MessageReadTracking.objects.create(group = msg_obj.group, message = msg_obj, read_by_user = self.user)
         except:
             return False,None
         msg_obj.refresh_from_db()
@@ -251,7 +268,7 @@ class GroupChatConsumer(AsyncJsonWebsocketConsumer):
     @database_sync_to_async
     def get_group_obj(self):
         try:
-            group_obj = Group.objects.get(id = self.group_id)
+            group_obj = ChatGroup.objects.get(id = self.group_id)
         except:
             return None
         return group_obj
@@ -289,7 +306,16 @@ class GroupChatConsumer(AsyncJsonWebsocketConsumer):
         print(messages_list)
         return messages_list
     
+    @database_sync_to_async
+    def update_activity(self):
+        self.user.useractivity.update_activity()
     
+    async def update_user_last_activity(self):
+        while True:
+            await asyncio.sleep(last_activity_update_interval)
+            await self.update_activity()
+
+
 class OnlineGroupUsersConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         print("OnlineGroupUsersConsumer: Browser trying to connect.................")
@@ -314,22 +340,29 @@ class OnlineGroupUsersConsumer(AsyncJsonWebsocketConsumer):
                 'members' : online_members
             }
         )
+        self.send_online_members_task = asyncio.create_task(self.send_online_members_after_every_interval())
         print("OnlineGroupUsersConsumer: CONNECTED............. USER : ",self.user.username)
 
     async def disconnect(self, code):
+        self.send_online_members_task.cancel()
         print("OnlineGroupUsersConsumer: SOCKET CONNECTION DISSCONNECTED..........USER : ", self.user.username)
 
     async def receive_json(self, content):
-        print("OnlineGroupUsersConsumer: Recieved online users request.................")
-        type = content.get('type')
-        if type == 'online_users_request':
-            online_members = await self.get_online_members()
-            await self.send_json(
-                {
-                    'type' : 'online_members',
-                    'members' : online_members
-                }
-            )
+        pass
+
+    async def send_online_members(self):
+        online_members = await self.get_online_members()
+        await self.send_json(
+            {
+                'type' : 'online_members',
+                'members' : online_members
+            }
+        )
+
+    async def send_online_members_after_every_interval(self):
+        while True:
+            await asyncio.sleep(last_activity_update_interval)
+            await self.send_online_members()
 
     @database_sync_to_async
     def get_online_members(self):
@@ -349,7 +382,7 @@ class OnlineGroupUsersConsumer(AsyncJsonWebsocketConsumer):
     @database_sync_to_async
     def get_group_obj(self):
         try:
-            group_obj = Group.objects.get(id = self.group_id)
+            group_obj = ChatGroup.objects.get(id = self.group_id)
         except:
             return None
         return group_obj
@@ -359,29 +392,6 @@ class OnlineGroupUsersConsumer(AsyncJsonWebsocketConsumer):
         if GroupMember.objects.filter(group = self.group_obj, member = self.user).first() is None:
             return False
         return True
-
-class UserOnlineStatusUpdateConsumer(AsyncJsonWebsocketConsumer):
-    async def connect(self):
-        print("UserOnlineStatusUpdateConsumer: Browser trying to connect.................")
-        self.user = self.scope['user']
-        if self.user.is_anonymous :
-            await self.close()
-            return
-        await self.update_user_activity()
-        await self.accept()
-
-    async def disconnect(self, code):
-        print("OnlineGroupUsersConsumer: SOCKET CONNECTION DISSCONNECTED..........USER : ", self.user.username)
-
-    async def receive_json(self, content):
-        print("Recieves online USER: ", self.user.username)
-        type = content.get('type')
-        if type == 'i_am_online':
-            await self.update_user_activity()
-
-    @database_sync_to_async
-    def update_user_activity(self):
-        self.user.useractivity.update_activity()
 
 
 class AboutGroupConsumer(AsyncJsonWebsocketConsumer):
@@ -402,10 +412,13 @@ class AboutGroupConsumer(AsyncJsonWebsocketConsumer):
             self.room_name, 
             self.channel_name
         )
+        self.update_last_activity_task = asyncio.create_task(self.update_user_last_activity())
+
         print("AboutGroupConsumer: CONNECTED................. USER: ", self.user.username)
 
     async def disconnect(self, code):
         print("AboutGroupConsumer: DISCONNECTED................. USER: ", self.user.username)
+        self.update_last_activity_task.cancel()
         await self.channel_layer.group_discard(
             self.room_name,
             self.channel_name
@@ -429,10 +442,19 @@ class AboutGroupConsumer(AsyncJsonWebsocketConsumer):
     @database_sync_to_async
     def get_group_obj(self):
         try:
-            group_obj = Group.objects.get(id = self.group_id)
+            group_obj = ChatGroup.objects.get(id = self.group_id)
         except:
             return None
         return group_obj
+    
+    @database_sync_to_async
+    def update_activity(self):
+        self.user.useractivity.update_activity()
+    
+    async def update_user_last_activity(self):
+        while True:
+            await asyncio.sleep(last_activity_update_interval)
+            await self.update_activity()
 
 
 class AdminAccessConsumer(AsyncJsonWebsocketConsumer):
@@ -456,6 +478,7 @@ class AdminAccessConsumer(AsyncJsonWebsocketConsumer):
             self.channel_name
         )
         await self.accept()
+        self.update_last_activity_task = asyncio.create_task(self.update_user_last_activity())
 
     async def receive_json(self, data):
         if not await self.is_user_is_group_member_and_admin():
@@ -498,6 +521,7 @@ class AdminAccessConsumer(AsyncJsonWebsocketConsumer):
             )
 
     async def disconnect(self, code):
+        self.update_last_activity_task.cancel()
         await self.channel_layer.group_discard(
             self.room_name,
             self.channel_name
@@ -600,7 +624,7 @@ class AdminAccessConsumer(AsyncJsonWebsocketConsumer):
     @database_sync_to_async
     def change_description(self, description):
         try: 
-            group = Group.objects.get(id = self.group_id)
+            group = ChatGroup.objects.get(id = self.group_id)
             group.description = description
             group.save()  # Save the updated group object
             self.group_obj = group
@@ -621,10 +645,19 @@ class AdminAccessConsumer(AsyncJsonWebsocketConsumer):
     @database_sync_to_async
     def get_group_obj(self):
         try:
-            group_obj = Group.objects.get(id = self.group_id)
+            group_obj = ChatGroup.objects.get(id = self.group_id)
         except:
             return None
         return group_obj
+    
+    @database_sync_to_async
+    def update_activity(self):
+        self.user.useractivity.update_activity()
+    
+    async def update_user_last_activity(self):
+        while True:
+            await asyncio.sleep(last_activity_update_interval)
+            await self.update_activity()
     
     
 class UserConsumer(AsyncJsonWebsocketConsumer):
@@ -753,7 +786,7 @@ class GroupConsumer(AsyncJsonWebsocketConsumer):
     @database_sync_to_async
     def request_to_join_group(self,group_id):
         try:
-            group_obj = Group.objects.get(id = group_id)
+            group_obj = ChatGroup.objects.get(id = group_id)
             GroupJoinRequest.objects.create(group = group_obj ,user = self.user)
         except Exception as e:
             print(e)
@@ -761,14 +794,14 @@ class GroupConsumer(AsyncJsonWebsocketConsumer):
     @database_sync_to_async
     def cancel_group_join_request(self, group_id):
         try:
-            obj = Group.objects.get(id = group_id)
+            obj = ChatGroup.objects.get(id = group_id)
             GroupJoinRequest.objects.filter(group = obj , user = self.user).delete()
         except Exception as e:
             print(e)
 
     @database_sync_to_async
     def get_groups_based_on_search(self, query):
-        groups = Group.objects.filter(name__icontains=query)[:5]
+        groups = ChatGroup.objects.filter(name__icontains=query)[:5]
         group_data = []
         for group in groups:
             if GroupMember.objects.filter(group=group , member = self.user).exists():
@@ -781,6 +814,7 @@ class GroupConsumer(AsyncJsonWebsocketConsumer):
                 {
                     'id' : group.id,
                     'name': group.name,
+                    'description' : group.description,
                     'creator': group.creator.username,
                     'members_count': GroupMember.objects.filter(group=group).count(),
                     'messages_count': GroupMessage.objects.filter(group=group).count(),
@@ -791,7 +825,7 @@ class GroupConsumer(AsyncJsonWebsocketConsumer):
     
     @database_sync_to_async
     def get_random_groups(self):
-        groups = Group.objects.order_by('?')[:5]
+        groups = ChatGroup.objects.order_by('?')[:5]
         group_data = []
         for group in groups:
             if GroupMember.objects.filter(group=group , member = self.user).exists():
@@ -804,6 +838,7 @@ class GroupConsumer(AsyncJsonWebsocketConsumer):
                 {
                     'id' : group.id,
                     'name': group.name,
+                    'description' : group.description,
                     'creator': group.creator.username,
                     'members_count': GroupMember.objects.filter(group=group).count(),
                     'messages_count': GroupMessage.objects.filter(group=group).count(),
@@ -811,6 +846,7 @@ class GroupConsumer(AsyncJsonWebsocketConsumer):
                 }
             )
         return group_data
+
 
 class OnlineUserConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
@@ -928,3 +964,230 @@ class PrivateChatsListConsumer(AsyncJsonWebsocketConsumer):
 
     async def new_chat_added(self, content):
         await self.send_json(content)
+
+
+class GroupChatListConsumer(AsyncJsonWebsocketConsumer):
+    async def connect(self):
+        self.user = self.scope['user']
+        if not self.user.is_authenticated:
+            await self.close()
+            return
+        await self.accept()
+        self.room_name1 = f"group_chats_list_user{self.user.id}"
+        self.room_name2 = "group_chats_list"
+        await self.channel_layer.group_add(
+            self.room_name1,
+            self.channel_name
+        )
+        await self.channel_layer.group_add(
+            self.room_name2,
+            self.channel_name
+        )
+        self.update_last_activity_task = asyncio.create_task(self.update_user_last_activity())
+
+    async def disconnect(self, code):
+        self.update_last_activity_task.cancel()
+        await self.channel_layer.group_discard(
+            self.room_name1,
+            self.channel_name
+        )
+        await self.channel_layer.group_discard(
+            self.room_name2,
+            self.channel_name
+        )
+    
+    async def receive_json(self, content):
+        pass
+
+    @database_sync_to_async
+    def update_activity(self):
+        self.user.useractivity.update_activity()
+    
+    async def update_user_last_activity(self):
+        while True:
+            await asyncio.sleep(last_activity_update_interval)
+            await self.update_activity()
+    
+    async def group_member_added(self, content):
+        await self.send_json(content)
+
+    async def group_member_removed(self, content):
+        await self.send_json(content)
+    
+    async def unread_count_incremented(self, content):
+        await self.send_json(content)
+
+    async def last_activity_updated(self, content):
+        await self.send_json(content)
+
+
+class PendingRequestsConsumer(AsyncJsonWebsocketConsumer):
+    async def connect(self):
+        self.user = self.scope['user']
+        if not self.user.is_authenticated:
+            await self.close()
+            return
+        await self.accept()
+        await self.channel_layer.group_add(
+            f'pending_requests_{self.user.id}',
+            self.channel_name
+        )
+        self.update_last_activity_task = asyncio.create_task(self.update_user_last_activity())
+    
+    async def disconnect(self, code):
+        self.update_last_activity_task.cancel()
+        await self.channel_layer.group_discard(
+            f'pending_requests_{self.user.id}',
+            self.channel_name
+        )
+
+    async def receive_json(self, content):
+        if content['type'] == 'cancel_join_request':
+            res  = await self.cancel_join_request(content['request_id'])
+            if res == False:
+                await self.send_json({
+                    'type': 'error',
+                    'message': 'Request not found'
+                })
+
+    @database_sync_to_async
+    def cancel_join_request(self,request_id):
+        try:
+            request = GroupJoinRequest.objects.get(id=request_id, user=self.user)
+            request.delete()
+        except Exception as e:
+            return False
+        return True
+    
+    async def request_removed(self, event):
+        await self.send_json(event)
+
+    async def request_added(self, event):
+        await self.send_json(event)
+
+    @database_sync_to_async
+    def update_activity(self):
+        self.user.useractivity.update_activity()
+    
+    async def update_user_last_activity(self):
+        while True:
+            await asyncio.sleep(last_activity_update_interval)
+            await self.update_activity()
+
+
+class MessageSeenDetailConsumer(AsyncJsonWebsocketConsumer):
+    async def connect(self):
+        self.message_id = self.scope['url_route']['kwargs']['message_id']
+        self.room_group_name = f'seen_message_{self.message_id}'
+
+        self.user = self.scope["user"]
+        self.message = await self.get_message()
+
+        if not self.user.is_authenticated or not await self.user_is_group_member():
+            await self.close()
+            return
+        await self.channel_layer.group_add(
+            self.room_group_name,
+            self.channel_name
+        )
+        await self.accept()
+        self.update_last_activity_task = asyncio.create_task(self.update_user_last_activity())
+
+
+    async def disconnect(self, code):
+        self.update_last_activity_task.cancel()
+        await self.channel_layer.group_discard(
+            self.room_group_name,
+            self.channel_name
+        )
+
+    async def receive_json(self, content):
+        pass  
+
+    async def seen_update(self, content):
+        await self.send_json(content)
+
+    @database_sync_to_async
+    def get_message(self):
+        return GroupMessage.objects.get(id=self.message_id)
+
+    @database_sync_to_async
+    def user_is_group_member(self):
+        return GroupMember.objects.filter(group=self.message.group, member=self.user).exists()
+    
+    @database_sync_to_async
+    def update_activity(self):
+        self.user.useractivity.update_activity()
+    
+    async def update_user_last_activity(self):
+        while True:
+            await asyncio.sleep(last_activity_update_interval)
+            await self.update_activity()
+
+class UserProfileConsumer(AsyncJsonWebsocketConsumer):
+    async def connect(self):
+        self.user = self.scope['user']
+        self.profile_user_id = self.scope['url_route']['kwargs']['user_id']
+        if self.user.is_anonymous:
+            await self.close()
+        else:
+            await self.accept()
+            await self.channel_layer.group_add(
+                f'profile_{self.profile_user_id}',
+                self.channel_name
+            )
+            self.update_task = asyncio.create_task(self.send_periodic_updates())
+            self.update_last_activity_task = asyncio.create_task(self.update_user_last_activity())
+
+    async def disconnect(self, code):
+        await self.channel_layer.group_discard(
+            f'profile_{self.profile_user_id}',
+            self.channel_name
+        )
+        self.update_task.cancel()
+        self.update_last_activity_task.cancel()
+
+    async def receive_json(self, content):
+        pass
+
+    async def last_seen_updated(self, event):
+        await self.send_json({
+            'type': 'last_seen_updated',
+            'last_seen': event['last_seen']
+        })
+
+    async def group_added(self, event):
+        await self.send_json({
+            'type': 'group_added',
+            'group': event['group'],
+            'list_type': event['list_type']
+        })
+
+    async def group_removed(self, event):
+        await self.send_json({
+            'type': 'group_removed',
+            'group_id': event['group_id'],
+            'list_type': event['list_type']
+        })
+
+    async def send_periodic_updates(self):
+        while True:
+            await asyncio.sleep(5)
+            user_activity = await self.get_user_activity()
+            await self.send_json({
+                'type': 'last_seen_updated',
+                'last_seen': user_activity.last_activity.isoformat()
+            })
+
+    @database_sync_to_async
+    def get_user_activity(self):
+        return UserActivity.objects.get(user_id=self.profile_user_id)
+    
+    @database_sync_to_async
+    def update_activity(self):
+        self.user.useractivity.update_activity()
+    
+    async def update_user_last_activity(self):
+        while True:
+            await asyncio.sleep(last_activity_update_interval)
+            await self.update_activity()

@@ -1,0 +1,148 @@
+{% extends "chatapp\\base.html" %}
+
+{% block title %}
+    Group Chats
+{% endblock title %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>My Group Chats</h2>
+    <div id="group-rooms" class="row">
+        {% for group in groups %}
+        <div class="col-md-4 group-room" data-last-activity="{{ group.last_activity }}" id="group-room-{{ group.id }}">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">{{ group.name }}</h5>
+                    <p class="card-text">{{ group.description }}</p>
+                    <p class="card-text" id="last-activity-{{ group.id }}"><small class="text-muted">Last Activity: {{ group.last_activity_human }}</small></p>
+                    {% if group.unread_count > 0 %}
+                    <p class="card-text">Unread Messages: <span id="unread-count-{{ group.id }}">{{ group.unread_count }}</span></p>
+                    {% endif %}
+                    <a href="{% url 'group_chat' group.id %}" class="btn btn-primary">Chat</a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock content %}
+
+{% block script %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const groupSocket = new WebSocket(
+            'ws://' + window.location.host + '/ws/group_chats/'
+        );
+
+        groupSocket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            if (data.type === 'unread_count_incremented') {
+                incrementUnreadCount(data.group_id);
+            } else if (data.type === 'last_activity_updated') {
+                updateLastActivity(data.group_id, data.last_activity);
+            } else if (data.type === 'group_member_added') {
+                addGroupToList(data.group);
+            } else if (data.type === 'group_member_removed') {
+                removeGroupFromList(data.group_id);
+            }
+        };
+
+        function incrementUnreadCount(groupId) {
+            const unreadCountElement = document.getElementById(`unread-count-${groupId}`);
+            if (unreadCountElement) {
+                let count = parseInt(unreadCountElement.textContent);
+                unreadCountElement.textContent = count + 1;
+            } else {
+                const groupRoom = document.getElementById(`group-room-${groupId}`);
+                const newUnreadCountElement = document.createElement('p');
+                newUnreadCountElement.className = 'card-text';
+                newUnreadCountElement.innerHTML = `Unread Messages: <span id="unread-count-${groupId}">1</span>`;
+                groupRoom.querySelector('.card-body').insertBefore(newUnreadCountElement, groupRoom.querySelector('.btn'));
+            }
+        }
+
+        function updateLastActivity(groupId, lastActivity) {
+            const lastActivityElement = document.getElementById(`last-activity-${groupId}`);
+            if (lastActivityElement) {
+                lastActivityElement.innerHTML = `<small class="text-muted">Last Activity: ${timeAgo(lastActivity)}</small>`;
+            }
+            const groupRoom = document.getElementById(`group-room-${groupId}`);
+            groupRoom.setAttribute('data-last-activity', lastActivity);
+            sortGroups();
+        }
+
+        function addGroupToList(group) {
+            const groupRoomsDiv = document.getElementById('group-rooms');
+            const groupElement = document.createElement('div');
+            groupElement.className = 'col-md-4 group-room';
+            groupElement.setAttribute('data-last-activity', group.last_activity);
+            groupElement.id = `group-room-${group.id}`;
+            groupElement.innerHTML = `
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">${group.name}</h5>
+                        <p class="card-text">${group.description}</p>
+                        <p class="card-text" id="last-activity-${group.id}"><small class="text-muted">Last Activity: ${timeAgo(group.last_activity)}</small></p>
+                        <p class="card-text">Unread Messages: <span id="unread-count-${group.id}">${group.unread_count}</span></p>
+                        <a href="/group/${group.id}/chat" class="btn btn-primary">Chat</a>
+                    </div>
+                </div>
+            `;
+            groupRoomsDiv.appendChild(groupElement);
+            sortGroups();
+        }
+
+        function removeGroupFromList(groupId) {
+            const groupElement = document.getElementById(`group-room-${groupId}`);
+            if (groupElement) {
+                groupElement.remove();
+            }
+        }
+
+        function sortGroups() {
+            const groupRoomsDiv = document.getElementById('group-rooms');
+            const groupRooms = Array.from(groupRoomsDiv.getElementsByClassName('group-room'));
+
+            groupRooms.sort((a, b) => {
+                const aLastActivity = new Date(a.getAttribute('data-last-activity'));
+                const bLastActivity = new Date(b.getAttribute('data-last-activity'));
+                return bLastActivity - aLastActivity;
+            });
+
+            groupRooms.forEach(groupRoom => groupRoomsDiv.appendChild(groupRoom));
+        }
+
+        function timeAgo(date) {
+            const now = new Date();
+            const parsedDate = new Date(date); // Ensure date is parsed correctly
+            const seconds = Math.floor((now - parsedDate) / 1000);
+            let interval = Math.floor(seconds / 31536000);
+
+            if (interval > 1) return `${interval} years ago`;
+            interval = Math.floor(seconds / 2592000);
+            if (interval > 1) return `${interval} months ago`;
+            interval = Math.floor(seconds / 86400);
+            if (interval > 1) return `${interval} days ago`;
+            interval = Math.floor(seconds / 3600);
+            if (interval > 1) return `${interval} hours ago`;
+            interval = Math.floor(seconds / 60);
+            if (interval >= 1) return `${interval} minutes ago`;
+            if (seconds < 60) return 'Just Now';
+            return `${Math.floor(seconds)} seconds ago`;
+        }
+
+
+        function updateTimeAgo() {
+            document.querySelectorAll('[data-last-activity]').forEach(element => {
+                const lastActivity = new Date(element.getAttribute('data-last-activity'));
+                const timeAgoText = timeAgo(lastActivity);
+                element.querySelector('.text-muted').innerText = `Last Activity: ${timeAgoText}`;
+            });
+        }
+
+        setInterval(updateTimeAgo, 10000);  // Update every minute
+        updateTimeAgo();  // Initial call
+        sortGroups();  // Initial sort
+    });
+</script>
+{% endblock script %}

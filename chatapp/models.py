@@ -48,12 +48,13 @@ class UserActivity(models.Model):
         return User.objects.filter( useractivity__last_activity__gte = time_threshold )
 
 
-class Group(models.Model):
+class ChatGroup(models.Model):
     creator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_groups')
     created_at = models.DateTimeField(auto_now_add=True)
     last_activity = models.DateTimeField(default=timezone.now)
     name = models.CharField(max_length=50, unique=True)
     description = models.TextField(blank=True)
+    msg_count = models.IntegerField(default=0)
 
     def update_last_activity(self):
         self.last_activity = timezone.now()
@@ -93,7 +94,7 @@ class Group(models.Model):
         
 class GroupMessage(models.Model):
     sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='group_messages_sent')
-    group = models.ForeignKey(Group, on_delete=models.CASCADE, related_name='messages')
+    group = models.ForeignKey(ChatGroup, on_delete=models.CASCADE, related_name='messages')
     content = models.TextField()
     timestamp = models.DateTimeField(auto_now_add=True)
     seen_count = models.IntegerField(default=0)
@@ -111,6 +112,7 @@ class GroupMessage(models.Model):
     
     
 class MessageReadTracking(models.Model):
+    group = models.ForeignKey(ChatGroup, on_delete = models.CASCADE)
     message = models.ForeignKey(GroupMessage, on_delete=models.CASCADE, related_name="readers")
     read_by_user = models.ForeignKey(User, on_delete = models.CASCADE)
     timestamp = models.DateTimeField(auto_now_add=True)
@@ -119,7 +121,7 @@ class MessageReadTracking(models.Model):
         unique_together = ('message', 'read_by_user')
 
     def clean(self):
-        if not GroupMember.objects.filter(group = self.message.group, member = self.read_by_user).exists():
+        if not GroupMember.objects.filter(group = self.group, member = self.read_by_user).exists():
             raise ValidationError(f"User {self.read_by_user.username} is not the member of the group {self.message.group.name} and cannot read this message")
         if self.read_by_user == self.message.sender:
             raise ValidationError('Sender can\'t be part of the read_user')
@@ -127,6 +129,49 @@ class MessageReadTracking(models.Model):
     def save(self, *args, **kwargs):
         self.clean()
         super().save(*args, **kwargs)
+
+    
+    
+class GroupMember(models.Model):
+    group = models.ForeignKey(ChatGroup, on_delete= models.CASCADE)
+    member = models.ForeignKey(User, on_delete= models.CASCADE)
+    is_admin = models.BooleanField(default=False)
+    seen_count = models.IntegerField(default=0)
+    msg_send_count = models.IntegerField(default=0)
+
+    class Meta:
+        unique_together = ('group', 'member')
+
+    def __str__(self):
+        return f'{self.member.username} in {self.group.name}'
+    
+
+class GroupJoinRequest(models.Model):
+    group = models.ForeignKey(ChatGroup, on_delete=models.CASCADE, related_name='join_requests')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='join_requests')
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('group', 'user')
+
+    def clean(self):
+        if GroupMember.objects.filter(group=self.group, member=self.user).exists():
+            raise ValidationError(f'User {self.user.username} is already a member of the group {self.group.name}.')
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
+
+    def accept(self):
+        if not GroupMember.objects.filter(group=self.group, member=self.user).exists():
+            GroupMember.objects.create(group=self.group, member=self.user)
+        self.delete()
+
+    def reject(self):
+        self.delete()
+
+    def __str__(self):
+        return f'Request by {self.user.username} to join {self.group.name}'
 
 
 class PrivateChatRoom(models.Model):
@@ -195,44 +240,3 @@ class PrivateMessage(models.Model):
 
     def __str__(self):
         return f'From: {self.sender.username} in {self.room.room_name} at {self.timestamp}'
-    
-    
-class GroupMember(models.Model):
-    group = models.ForeignKey(Group, on_delete= models.CASCADE)
-    member = models.ForeignKey(User, on_delete= models.CASCADE)
-    is_admin = models.BooleanField(default=False)
-
-    class Meta:
-        unique_together = ('group', 'member')
-
-    def __str__(self):
-        return f'{self.member.username} in {self.group.name}'
-    
-
-class GroupJoinRequest(models.Model):
-    group = models.ForeignKey(Group, on_delete=models.CASCADE, related_name='join_requests')
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='join_requests')
-    timestamp = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        unique_together = ('group', 'user')
-
-    def clean(self):
-        if GroupMember.objects.filter(group=self.group, member=self.user).exists():
-            raise ValidationError(f'User {self.user.username} is already a member of the group {self.group.name}.')
-
-    def save(self, *args, **kwargs):
-        self.clean()
-        super().save(*args, **kwargs)
-
-    def accept(self):
-        if not GroupMember.objects.filter(group=self.group, member=self.user).exists():
-            GroupMember.objects.create(group=self.group, member=self.user)
-        self.delete()
-
-    def reject(self):
-        self.delete()
-
-    def __str__(self):
-        return f'Request by {self.user.username} to join {self.group.name}'
-

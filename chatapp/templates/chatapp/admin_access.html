@@ -1,76 +1,86 @@
-
 {% extends "chatapp\\base.html" %}
-
 
 {% block title %}
     Admin Access - {{ group.name }}
 {% endblock title %}
 
-
 {% block content %}
-    <div class="container">
-        <h1>Admin Access for Group: {{ group.name }}</h1>
+    <div class="container mt-5">
+        <h1 class="text-primary text-center">Admin Access for Group: {{ group.name }}</h1>
         
         <!-- Group Description Section -->
-        <div class="section">
-            <h2>Group Description</h2>
-            <div>
-                <textarea id="description-input" rows="4" cols="50" disabled>{{ group.description }}</textarea>
-                <button type="button" id="change-description">Change</button>
-                <button type="button" id="update-description" style="display:none;">Update Description</button>
+        <div class="card mb-4">
+            <div class="card-body">
+                <h2 class="card-title">Group Description</h2>
+                <div class="form-group">
+                    <textarea id="description-input" class="form-control" rows="4" disabled>{{ group.description }}</textarea>
+                    <button type="button" class="btn btn-primary mt-2" id="change-description">Change</button>
+                    <button type="button" class="btn btn-success mt-2" id="update-description" style="display:none;">Update Description</button>
+                </div>
             </div>
         </div>
 
         <!-- Admins List -->
-        <div class="section">
-            <h2>Admins</h2>
-            <div id="admins">
-                {% for admin in admins %}
-                    <div class="admin" id="admin-{{ admin.id }}">
-                        <span><a href="/profile/{{ admin.id }}">{{ admin.username }}</a></span>
-                        <button class="remove-admin" data-user-id="{{ admin.id }}">Remove Admin Rights</button>
-                    </div>
-                {% endfor %}
+        <div class="card mb-4">
+            <div class="card-body">
+                <h2 class="card-title">Admins</h2>
+                <div id="admins" class="list-group">
+                    {% for admin in admins %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center" id="admin-{{ admin.id }}">
+                            <a href="/profile/{{ admin.id }}">{{ admin.username }}</a>
+                            <button class="btn btn-danger btn-sm remove-admin" data-user-id="{{ admin.id }}">Remove Admin Rights</button>
+                        </div>
+                    {% endfor %}
+                </div>
             </div>
         </div>
 
         <!-- Members List -->
-        <div class="section">
-            <h2>Members</h2>
-            <div id="members">
-                {% for member in members %}
-                    <div class="member" id="member-{{ member.id }}">
-                        <span><a href="/profile/{{ member.id }}">{{ member.username }}</a></span>
-                        <button class="add-admin" data-user-id="{{ member.id }}">Add Admin</button>
-                        <button class="remove-member" data-user-id="{{ member.id }}">Remove from Group</button>
-                    </div>
-                {% endfor %}
+        <div class="card mb-4">
+            <div class="card-body">
+                <h2 class="card-title">Members</h2>
+                <div id="members" class="list-group">
+                    {% for member in members %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center" id="member-{{ member.id }}">
+                            <a href="/profile/{{ member.id }}">{{ member.username }}</a>
+                            <div>
+                                <button class="btn btn-primary btn-sm add-admin" data-user-id="{{ member.id }}">Add Admin</button>
+                                <button class="btn btn-danger btn-sm remove-member" data-user-id="{{ member.id }}">Remove from Group</button>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
             </div>
         </div>
 
         <!-- Join Requests List -->
-        <div class="section">
-            <h2>Join Requests</h2>
-            <div id="join-requests">
-                {% for request in join_requests %}
-                    <div class="request" id="request-{{ request.id }}">
-                        <span><a href="/profile/{{ request.user.id }}">{{ request.user.username }}</a></span>
-                        <button class="accept-request" data-request-id="{{ request.id }}">Accept Request</button>
-                        <button class="reject-request" data-request-id="{{ request.id }}">Reject Request</button>
-                    </div>
-                {% endfor %}
+        <div class="card mb-4">
+            <div class="card-body">
+                <h2 class="card-title">Join Requests</h2>
+                <div id="join-requests" class="list-group">
+                    {% for request in join_requests %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center" id="request-{{ request.id }}">
+                            <a href="/profile/{{ request.user.id }}">{{ request.user.username }}</a>
+                            <div>
+                                <button class="btn btn-success btn-sm accept-request" data-request-id="{{ request.id }}">Accept Request</button>
+                                <button class="btn btn-danger btn-sm reject-request" data-request-id="{{ request.id }}">Reject Request</button>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
             </div>
         </div>
 
         <!-- User Search -->
-        <div class="section">
-            <h2>Add Members</h2>
-            <input type="text" id="user-search" placeholder="Search for users..." autocomplete="off">
-            <div id="search-results"></div>
+        <div class="card mb-4">
+            <div class="card-body">
+                <h2 class="card-title">Add Members</h2>
+                <input type="text" id="user-search" class="form-control" placeholder="Search for users..." autocomplete="off">
+                <div id="search-results" class="list-group mt-2"></div>
+            </div>
         </div>
     </div>
 {% endblock content %}
-
 
 {% block script %}
     <script>
@@ -209,10 +219,10 @@
                     return;
                 }
                 const adminDiv = document.createElement('div');
-                adminDiv.className = 'admin';
+                adminDiv.className = 'list-group-item d-flex justify-content-between align-items-center';
                 adminDiv.id = 'admin-' + admin.id;
-                adminDiv.innerHTML = `<span><a href="/profile/${admin.id}">${admin.username}</a></span>
-                                      <button class="remove-admin" data-user-id="${admin.id}">Remove Admin Rights</button>`;
+                adminDiv.innerHTML = `<a href="/profile/${admin.id}">${admin.username}</a>
+                                      <button class="btn btn-danger btn-sm remove-admin" data-user-id="${admin.id}">Remove Admin Rights</button>`;
                 document.getElementById('admins').appendChild(adminDiv);
             }
 
@@ -242,11 +252,13 @@
                     return;
                 }
                 const requestDiv = document.createElement('div');
-                requestDiv.className = 'request';
+                requestDiv.className = 'list-group-item d-flex justify-content-between align-items-center';
                 requestDiv.id = 'request-' + request_id;
-                requestDiv.innerHTML = `<span><a href="/profile/${user.id}">${user.username}</a></span>
-                                        <button class="accept-request" data-request-id="${request_id}">Accept Request</button>
-                                        <button class="reject-request" data-request-id="${request_id}">Reject Request</button>`;
+                requestDiv.innerHTML = `<a href="/profile/${user.id}">${user.username}</a>
+                                        <div>
+                                            <button class="btn btn-success btn-sm accept-request" data-request-id="${request_id}">Accept Request</button>
+                                            <button class="btn btn-danger btn-sm reject-request" data-request-id="${request_id}">Reject Request</button>
+                                        </div>`;
                 document.getElementById('join-requests').appendChild(requestDiv);
             }
 
@@ -256,11 +268,13 @@
                     return;
                 }
                 const memberDiv = document.createElement('div');
-                memberDiv.className = 'member';
+                memberDiv.className = 'list-group-item d-flex justify-content-between align-items-center';
                 memberDiv.id = 'member-' + member.id;
-                memberDiv.innerHTML = `<span><a href="/profile/${member.id}">${member.username}</a></span>
-                                       <button class="add-admin" data-user-id="${member.id}">Add Admin</button>
-                                       <button class="remove-member" data-user-id="${member.id}">Remove from Group</button>`;
+                memberDiv.innerHTML = `<a href="/profile/${member.id}">${member.username}</a>
+                                       <div>
+                                           <button class="btn btn-primary btn-sm add-admin" data-user-id="${member.id}">Add Admin</button>
+                                           <button class="btn btn-danger btn-sm remove-member" data-user-id="${member.id}">Remove from Group</button>
+                                       </div>`;
                 document.getElementById('members').appendChild(memberDiv);
             }
 
@@ -269,86 +283,13 @@
                 searchResultsDiv.innerHTML = '';
                 results.forEach(user => {
                     const userDiv = document.createElement('div');
-                    userDiv.className = 'search-result';
+                    userDiv.className = 'list-group-item d-flex justify-content-between align-items-center';
                     userDiv.id = 'search-result-' + user.id;
-                    userDiv.innerHTML = `<span><a href="/profile/${user.id}">${user.username}</a></span>
-                                         <button class="add-member" data-user-id="${user.id}">Add Member</button>`;
+                    userDiv.innerHTML = `<a href="/profile/${user.id}">${user.username}</a>
+                                         <button class="btn btn-primary btn-sm add-member" data-user-id="${user.id}">Add Member</button>`;
                     searchResultsDiv.appendChild(userDiv);
                 });
             }
         });
     </script>
 {% endblock script %}
-
-
-{% block style %}
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f0f2f5;
-            margin: 0;
-            padding: 0;
-        }
-        .container {
-            max-width: 800px;
-            margin-top: 20px;
-            margin-bottom: 20px;
-            background-color: #fff;
-            padding: 20px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            border-radius: 20px;
-        }
-        h1 {
-            color: #007bff;
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        .section {
-            margin-bottom: 20px;
-        }
-        .section h2 {
-            color: #007bff;
-            border-bottom: 2px solid #007bff;
-            padding-bottom: 5px;
-            margin-bottom: 10px;
-        }
-        .admin, .member, .request, .search-result {
-            padding: 10px;
-            border-bottom: 1px solid #ccc;
-        }
-        .admin:last-child, .member:last-child, .request:last-child, .search-result:last-child {
-            border-bottom: none;
-        }
-        button {
-            margin-left: 10px;
-            background-color: #007bff;
-            color: #fff;
-            border: none;
-            padding: 5px 10px;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #0056b3;
-        }
-        #user-search {
-            width: 100%;
-            padding: 10px;
-            border-radius: 5px;
-            border: 1px solid #ccc;
-            margin-bottom: 10px;
-        }
-        #search-results {
-            max-height: 200px;
-            overflow-y: auto;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            background-color: #fafafa;
-            padding: 10px;
-        }
-        #description-input {
-            width: 100%;
-            box-sizing: border-box;
-        }
-    </style>
-{% endblock style %}

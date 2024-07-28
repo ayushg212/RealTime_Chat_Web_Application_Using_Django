@@ -1,0 +1,69 @@
+{% extends "chatapp/base.html" %}
+
+{% block title %}
+    Message Details
+{% endblock title %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Message Details</h2>
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Message</h5>
+            <p class="card-text">Content: {{ message.content }}</p>
+            <p class="card-text">Sender: {{ message.sender.username }}</p>
+            <p class="card-text">Group: {{ message.group.name }}</p>
+            <p class="card-text">Timestamp: {{ message.timestamp }}</p>
+        </div>
+    </div>
+
+    <h3>Seen by</h3>
+    <ul id="seen-users-list" class="list-group">
+        {% for seen_user in seen_users %}
+        <li class="list-group-item">
+            {{ seen_user.read_by_user.username }} at {{ seen_user.timestamp }}
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endblock content %}
+
+{% block script %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const messageId = {{ message.id }};
+        const socket = new WebSocket(
+            'ws://' + window.location.host + '/ws/message/' + messageId + '/'
+        );
+
+        socket.onopen = function(e) {
+            console.log("Connection established");
+        };
+
+        socket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            if (data.type === 'seen_update') {
+                const seenUsersList = document.getElementById('seen-users-list');
+                const newListItem = document.createElement('li');
+                newListItem.className = 'list-group-item';
+                const timestamp = new Date(data.timestamp);
+                const formattedTimestamp = timestamp.toLocaleString();
+                newListItem.textContent = `${data.username} at ${formattedTimestamp}`;
+                seenUsersList.appendChild(newListItem);
+            }
+        };
+
+        socket.onerror = function(error) {
+            console.log(`WebSocket error: ${error.message}`);
+        };
+
+        socket.onclose = function(event) {
+            if (event.wasClean) {
+                console.log(`Connection closed cleanly, code=${event.code} reason=${event.reason}`);
+            } else {
+                console.log('Connection died');
+            }
+        };
+    });
+</script>
+{% endblock script %}

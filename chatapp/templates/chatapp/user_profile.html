@@ -1,0 +1,98 @@
+{% extends "chatapp/base.html" %}
+
+{% block title %}
+    Profile - {{ profile_user.username }}
+{% endblock title %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Profile of {{ profile_user.username }}</h2>
+    <p><strong>Name:</strong> {{ profile_user.first_name }} {{ profile_user.last_name }}</p>
+    <p><strong>Username:</strong> {{ profile_user.username }}</p>
+    <p><strong>Joined Date:</strong> {{ profile_user.date_joined }}</p>
+    <p><strong>Last Seen:</strong> <span id="last-seen" data-last-seen="{{  last_activity }}">{{ last_seen_human }}</span></p>
+
+    <h3>Groups Created</h3>
+    <ul id="created-groups" class="list-group">
+        {% for group in created_groups %}
+            <li class="list-group-item" data-group-id="{{ group.id }}">{{ group.name }}</li>
+        {% endfor %}
+    </ul>
+
+    <h3>Groups Member</h3>
+    <ul id="member-groups" class="list-group">
+        {% for group in member_groups %}
+            <li class="list-group-item" data-group-id="{{ group.id }}">{{ group.name }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endblock content %}
+
+{% block script %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {  
+        const userId = "{{ profile_user.id }}";
+        const socket = new WebSocket(
+            'ws://' + window.location.host + '/ws/profile/' + userId + '/'
+        );
+
+        socket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            if (data.type === 'last_seen_updated') {
+                updateLastSeen(new Date(data.last_seen));
+            } else if (data.type === 'group_added') {
+                addGroupToList(data.group, data.list_type);
+            } else if (data.type === 'group_removed') {
+                removeGroupFromList(data.group_id, data.list_type);
+            }
+        };
+
+        function timeAgo(date) {
+            const now = new Date();
+            const seconds = Math.floor((now - date) / 1000);
+            let interval = Math.floor(seconds / 31536000);
+
+            if (interval > 1) return `${interval} years ago`;
+            interval = Math.floor(seconds / 2592000);
+            if (interval > 1) return `${interval} months ago`;
+            interval = Math.floor(seconds / 86400);
+            if (interval > 1) return `${interval} days ago`;
+            interval = Math.floor(seconds / 3600);
+            if (interval > 1) return `${interval} hours ago`;
+            interval = Math.floor(seconds / 60);
+            if (interval >= 1) return `${interval} minutes ago`;
+            if (seconds < 60) return 'Just Now';
+            return `${Math.floor(seconds)} seconds ago`;
+        }
+
+        function updateLastSeen(lastSeenDate) {
+            const lastSeenElement = document.getElementById('last-seen');
+            lastSeenElement.textContent = timeAgo(lastSeenDate);
+            lastSeenElement.setAttribute('data-last-seen', lastSeenDate.toISOString());
+        }
+
+        function addGroupToList(group, listType) {
+            const list = document.getElementById(listType + '-groups');
+            const li = document.createElement('li');
+            li.className = 'list-group-item';
+            li.setAttribute('data-group-id', group.id);
+            li.textContent = group.name;
+            list.appendChild(li);
+        }
+
+        function removeGroupFromList(groupId, listType) {
+            const list = document.getElementById(listType + '-groups');
+            const listItem = list.querySelector(`[data-group-id='${groupId}']`);
+            if (listItem) {
+                list.removeChild(listItem);
+            }
+        }
+
+        setInterval(function() {
+            const lastSeenElement = document.getElementById('last-seen');
+            const lastSeenDate = new Date(lastSeenElement.getAttribute('data-last-seen'));
+            lastSeenElement.textContent = timeAgo(lastSeenDate);
+        }, 10000);  // Update every second
+    });
+</script>
+{% endblock script %}

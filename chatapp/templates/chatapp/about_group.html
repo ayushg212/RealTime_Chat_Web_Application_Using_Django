@@ -1,4 +1,3 @@
-
 {% extends "chatapp\\base.html" %}
 
 {% block title %}
@@ -6,50 +5,58 @@
 {% endblock title %}
 
 {% block content %}
-    <div class="container">
-        <h1>About Group: {{ group.name }}</h1>
+    <div class="container mt-5">
+        <h1 class="text-primary text-center">About Group: {{ group.name }}</h1>
         {% if group.description %}
-            <div class="section">
-                <h2>Group Description</h2>
-                <p>{{ group.description }}</p>
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h2 class="card-title">Group Description</h2>
+                    <p class="card-text">{{ group.description }}</p>
+                </div>
             </div>
         {% endif %}
-        <div class="section">
-            <h2>Group Creator</h2>
-            <p>
-                <a href="/profile/{{ creator.id }}/" id="creator-{{ creator.id }}" class="link">
-                    {{ creator.username }}
-                </a>
-            </p>
-        </div>
-        <div class="section">
-            <h2>Group Creation Time</h2>
-            <p>{{ group.created_at|date:"F j, Y, g:i a" }}</p>
-        </div>
-        <div class="section">
-            <h2>Admins</h2>
-            <div id="admins">
-                {% for admin in admins %}
-                    <div class="admin" id="admin-{{ admin.id }}">
-                        <a href="/profile/{{ admin.id }}/" class="link">{{ admin.username }}</a>
-                    </div>
-                {% endfor %}
+        <div class="card mb-4">
+            <div class="card-body">
+                <h2 class="card-title">Group Creator</h2>
+                <p>
+                    <a href="/profile/{{ creator.id }}/" id="creator-{{ creator.id }}" class="link text-decoration-none">
+                        {{ creator.username }}
+                    </a>
+                </p>
             </div>
         </div>
-        <div class="section">
-            <h2>Members</h2>
-            <div id="members">
-                {% for member in members %}
-                    <div class="member" id="member-{{ member.id }}">
-                        <a href="/profile/{{ member.id }}/" class="link">{{ member.username }}</a>
-                    </div>
-                {% endfor %}
+        <div class="card mb-4">
+            <div class="card-body">
+                <h2 class="card-title">Group Creation Time</h2>
+                <p>{{ group.created_at|date:"F j, Y, g:i a" }}</p>
+            </div>
+        </div>
+        <div class="card mb-4">
+            <div class="card-body">
+                <h2 class="card-title">Admins</h2>
+                <div id="admins" class="list-group">
+                    {% for admin in admins %}
+                        <a href="/profile/{{ admin.id }}/" class="list-group-item list-group-item-action" id="admin-{{ admin.id }}">
+                            {{ admin.username }}
+                        </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        <div class="card mb-4">
+            <div class="card-body">
+                <h2 class="card-title">Members</h2>
+                <div id="members" class="list-group">
+                    {% for member in members %}
+                        <a href="/profile/{{ member.id }}/" class="list-group-item list-group-item-action" id="member-{{ member.id }}">
+                            {{ member.username }}
+                        </a>
+                    {% endfor %}
+                </div>
             </div>
         </div>
     </div>
-
 {% endblock content %}
-
 
 {% block script %}
     <script>
@@ -79,10 +86,11 @@
                     return;
                 }
                 const membersDiv = document.getElementById('members');
-                const memberDiv = document.createElement('div');
-                memberDiv.className = 'member';
+                const memberDiv = document.createElement('a');
+                memberDiv.className = 'list-group-item list-group-item-action';
                 memberDiv.id = 'member-' + member.id;
-                memberDiv.innerHTML = `<a href="/profile/${member.id}/" class="link">${member.username}</a>`;
+                memberDiv.href = '/profile/' + member.id + '/';
+                memberDiv.textContent = member.username;
                 membersDiv.appendChild(memberDiv);
             }
 
@@ -99,10 +107,11 @@
                     return;
                 }
                 const adminsDiv = document.getElementById('admins');
-                const adminDiv = document.createElement('div');
-                adminDiv.className = 'admin';
+                const adminDiv = document.createElement('a');
+                adminDiv.className = 'list-group-item list-group-item-action';
                 adminDiv.id = 'admin-' + admin.id;
-                adminDiv.innerHTML = `<a href="/profile/${admin.id}/" class="link">${admin.username}</a>`;
+                adminDiv.href = '/profile/' + admin.id + '/';
+                adminDiv.textContent = admin.username;
                 adminsDiv.appendChild(adminDiv);
             }
 
@@ -115,54 +124,3 @@
         });
     </script>
 {% endblock script %}
-
-
-{% block style %}
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f0f2f5;
-            margin: 0;
-            padding: 0;
-        }
-        .container {
-            max-width: 800px;
-            margin: 40px auto;
-            background-color: #fff;
-            padding: 20px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            border-radius: 10px;
-        }
-        h1 {
-            color: #007bff;
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        .section {
-            margin-bottom: 20px;
-        }
-        .section h2 {
-            color: #007bff;
-            border-bottom: 2px solid #007bff;
-            padding-bottom: 5px;
-            margin-bottom: 10px;
-        }
-        .section p {
-            margin: 0;
-        }
-        .member, .admin {
-            padding: 10px;
-            border-bottom: 1px solid #ccc;
-        }
-        .member:last-child, .admin:last-child {
-            border-bottom: none;
-        }
-        .link {
-            color: #007bff;
-            text-decoration: none;
-        }
-        .link:hover {
-            text-decoration: underline;
-        }
-    </style>
-{% endblock style %}

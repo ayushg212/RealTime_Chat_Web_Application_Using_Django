@@ -127,8 +127,8 @@
                 interval = Math.floor(seconds / 3600);
                 if (interval > 1) return `${interval} hours ago`;
                 interval = Math.floor(seconds / 60);
-                if (interval > 1) return `${interval} minutes ago`;
-                if (seconds < 60) return 'Online';
+                if (interval >= 1) return `${interval} minutes ago`;
+                if (seconds < 60) return 'Just Now';
                 return `${Math.floor(seconds)} seconds ago`;
             }
 
@@ -139,7 +139,7 @@
                     const lastSeen = new Date(el.getAttribute('data-last-seen'));
                     el.innerHTML = `<small class="text-muted">Last Seen: ${timeAgo(lastSeen)}</small>`;
                 });
-            }, 60000); // Update every 60 seconds
+            }, 10000); // Update every  second
         });
     </script>
 {% endblock script %}

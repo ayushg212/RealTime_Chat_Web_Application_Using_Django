@@ -1,0 +1,49 @@
+{% extends "chatapp/base.html" %}
+
+{% block title %}About Chat Application{% endblock title %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>About Chat Application</h1>
+    <p>This is a real-time chat application built using Django and Django Channels. The application supports both private and group chats with features such as message tracking, online status, and real-time updates.</p>
+    
+    <h2>Features</h2>
+    <ul>
+        <li>Real-time private and group chat functionality using WebSockets.</li>
+        <li>User authentication and profile management.</li>
+        <li>Creation and management of chat groups with admin access.</li>
+        <li>Tracking of online status and last seen times for users.</li>
+        <li>Management of group join requests with real-time updates.</li>
+        <li>Dynamic updating of message read status and seen counts.</li>
+    </ul>
+
+    <h2>Components</h2>
+    <p>The project consists of the following main components:</p>
+    <ul>
+        <li><strong>Models:</strong> Define the database structure for users, groups, messages, and user activities.</li>
+        <li><strong>Views:</strong> Handle the HTTP requests and render the appropriate templates.</li>
+        <li><strong>Templates:</strong> HTML files that define the structure and layout of the web pages.</li>
+        <li><strong>Consumers:</strong> WebSocket consumers that manage real-time communication for chat functionality.</li>
+        <li><strong>Signals:</strong> Django signals that handle asynchronous updates and notifications.</li>
+    </ul>
+
+    <h2>How It Works</h2>
+    <p>Here's a brief overview of how the application works:</p>
+    <ul>
+        <li>Users can sign up, log in, and manage their profiles.</li>
+        <li>Authenticated users can create and join chat groups.</li>
+        <li>Users can send and receive messages in real-time, with messages being displayed instantly in the chat interface.</li>
+        <li>The online status and last seen time of users are tracked and updated dynamically.</li>
+        <li>Group join requests can be sent and managed in real-time, with users receiving instant notifications of request status changes.</li>
+        <li>Message read statuses are tracked, and users can see who has read their messages.</li>
+    </ul>
+
+    <h2>Technologies Used</h2>
+    <ul>
+        <li>Django: For building the backend and managing database interactions.</li>
+        <li>Django Channels: For handling WebSocket connections and real-time communication.</li>
+        <li>Bootstrap: For responsive and modern UI design.</li>
+        <li>JavaScript: For client-side scripting and dynamic updates.</li>
+    </ul>
+</div>
+{% endblock content %}

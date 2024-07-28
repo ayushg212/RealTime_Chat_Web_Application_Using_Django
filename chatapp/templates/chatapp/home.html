@@ -113,6 +113,7 @@
                             <div class="card m-2 p-2" id="group-${group.id}" >
                                 <div class="card-body">
                                     <h5 class="card-title" id="group-${group.id}-name">${group.name}</h5>
+                                    <p class="card-text" id="group-${group.id}-description"> ${group.description}</p>
                                     <p class="card-text" id="group-${group.id}-creator">Creator: ${group.creator}</p>
                                     <p class="card-text" id="group-${group.id}-members-count">Members: ${group.members_count}</p>
                                     <p class="card-text" id="group-${group.id}-messages-count">Messages: ${group.messages_count}</p>
@@ -252,7 +253,7 @@
                 interval = Math.floor(seconds / 3600);
                 if (interval > 1) return `${interval} hours ago`;
                 interval = Math.floor(seconds / 60);
-                if (interval > 1) return `${interval} minutes ago`;
+                if (interval >= 1) return `${interval} minutes ago`;
                 if (seconds < 60) return 'Online';
                 return `${Math.floor(seconds)} seconds ago`;
             }
