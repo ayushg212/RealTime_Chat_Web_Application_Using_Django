@@ -72,6 +72,9 @@ Make sure you have the following installed:
 
 6. Open your browser and navigate to `http://localhost:8000` to start using the application.
 
+## ER Diagram of Defined Models:
+![EER_model](https://github.com/user-attachments/assets/e17a1137-4de5-4253-97c5-061b44e0fe34)
+
 ## Screenshots of Application
 
 ![signup](https://github.com/user-attachments/assets/cf23850d-cdf0-4a5b-8e08-ed545b9d6360)
