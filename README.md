@@ -1,5 +1,8 @@
 # Real-Time Chat Application
-[Click here to visit the site](https://aayush22002.el.r.appspot.com/)
+[Click here to visit the site](https://aayush22002.el.r.appspot.com/)<br/>
+For Better Experience Login with Below Credentials: <br/>
+Username: Test_User<br/>
+Password: chatapp@123
 
 Welcome to the Real-Time Chat Application repository! This project is built using Django, HTML, CSS, and JavaScript. It provides an intuitive and efficient platform for real-time communication.
 
