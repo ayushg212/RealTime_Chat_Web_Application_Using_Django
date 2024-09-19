@@ -37,9 +37,8 @@ Welcome to the Real-Time Chat Application repository! This project is built usin
 
 Make sure you have the following installed:
 
-- Python (v3.8 or higher)
-- Django (v3.0 or higher)
-- Node.js (for JavaScript dependencies, if applicable)
+- Python 
+- Django 
 
 ### Installation
 
