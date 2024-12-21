@@ -1,5 +1,5 @@
 # Real-Time Chat Application
-![Click here to visit the site]([https://aayush22002.el.r.appspot.com/](https://aayush22002.azurewebsites.net/accounts/login/?next=/))<br/>
+[Click here to visit the site](https://aayush22002.azurewebsites.net/accounts/login/?next=/))<br/>
 For Better Experience Login with Below Credentials: <br/>
 Username: Test_User<br/>
 Password: chatapp@123
