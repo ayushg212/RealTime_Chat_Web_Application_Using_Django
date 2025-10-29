@@ -1,4 +1,4 @@
-[Click here to visit the site](https://aayush-002-chatapp.duckdns.org/)<br/>
+[Click here to visit the live site](https://aayush-002-chatapp.duckdns.org/)<br/>
 # Real-Time Chat Application
 
 Welcome to the Real-Time Chat Application repository! This project is built using Django, HTML, CSS, and JavaScript. It provides an intuitive and efficient platform for real-time communication.
